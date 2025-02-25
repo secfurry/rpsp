@@ -274,4 +274,4 @@ Theres alot of more examples I need to add..
 - CYW Driver
   - Networking??
 
-License for the CYW driver is [here](src/cyw/firmware/LICENSE-permissive-binary-license-1.0)
+License for the CYW driver is [here](src/cyw/firmware/LICENSE-permissive-binary-license-1.0.txt)
