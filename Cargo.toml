@@ -1,0 +1,38 @@
+[package]
+name              = "rpsp"
+build             = "build.rs"
+readme            = "README.md"
+authors           = [ "secfurry" ]
+edition           = "2024"
+license           = "MIT"
+publish           = true
+version           = "0.1.0"
+keywords          = [ "rp2040", "pico", "picow", "embedded", "pi-pico" ]
+categories        = [ "no-std", "embedded", "api-bindings", "hardware-support" ]
+repository        = "https://github.com/secfurry/rpsp"
+description       = "Simple, small, but extensible platform support package for RP2040 devices."
+
+[lib]
+doc               = true
+name              = "rpsp"
+path              = "src/lib.rs"
+test              = false
+bench             = false
+doctest           = false
+edition           = "2024"
+crate-type        = [ "lib" ]
+proc-marco        = false
+
+[dependencies]
+cortex-m          = { version = "0.7.7", default-features = false, features = [ "inline-asm" ] }
+cortex-m-rt       = { version = "0.7.5", default-features = false, features = [ "device" ]  }
+rp2040-pac        = { version = "0.6.0", default-features = false, features = [ "rt" ] }
+rp2040-hal-macros = { version = "0.1.0", default-features = false }
+
+[features]
+default           = [ "pico" ]
+debug             = []
+cyw               = [ "pico" ]
+pico              = []
+tiny2040          = []
+xiao2040          = []
