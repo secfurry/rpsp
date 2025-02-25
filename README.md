@@ -28,6 +28,9 @@ __OF THE PINS USED__.
 
 I'm open to more devices, I just don't have examples to use ^_^
 
+If you'd like to contribute, pinouts are located in `src/pin.rs` _(Eventually I might_
+_automate pin layout generation?)_
+
 ## Note
 
 You'll need to make sure you have the `flip-link` linker installed before compiling.
