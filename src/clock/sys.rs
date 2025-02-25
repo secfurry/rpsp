@@ -400,8 +400,8 @@ fn setup_rosc(clocks: &CLOCKS, freq: u32) -> (u32, u32) {
     rosc_tune(&v, clocks, freq)
 }
 fn setup_rtc(clocks: &CLOCKS, clk_freq: u32, freq: u32) -> RTC {
-    // BUG(dij): RTC clock skews a bit after a period of time in a linear path.
-    //           This is potentially due to the system clock frequency?
+    // BUG(sf): RTC clock skews a bit after a period of time in a linear path.
+    //          This is potentially due to the system clock frequency?
     let f = ((clk_freq as f32 / 46_875f32) * 100f32) as u32;
     let d = (f / 100) << 8 | (f % 100);
     if clocks.clk_rtc_div().read().bits() < d {

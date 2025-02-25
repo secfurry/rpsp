@@ -36,7 +36,7 @@ use crate::pac::pads_bank0::GPIO;
 use crate::pac::{ADC, IO_BANK0, PADS_BANK0, RESETS, SIO, SYSCFG};
 use crate::pin::gpio::{Input, Output};
 use crate::pin::pwm::{PwmID, PwmPin};
-use crate::{write_reg, Pico};
+use crate::{Pico, write_reg};
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub use self::pins::*;
@@ -196,32 +196,20 @@ impl PinID {
     fn inter_set(&self, i: PinInterrupt, en: bool) {
         let (p, n) = (unsafe { &*IO_BANK0::PTR }, (*self as usize) / 8);
         write_reg(
-            if on_core0() {
-                p.proc0_inte(n).as_ptr()
-            } else {
-                p.proc1_inte(n).as_ptr()
-            },
+            if on_core0() { p.proc0_inte(n).as_ptr() } else { p.proc1_inte(n).as_ptr() },
             (i as u32) << self.offset(),
             !en,
         )
     }
     fn inter_status(&self, i: PinInterrupt) -> bool {
         let (p, n) = (unsafe { &*IO_BANK0::PTR }, (*self as usize) / 8);
-        let r = if on_core0() {
-            p.proc0_ints(n).read().bits()
-        } else {
-            p.proc1_ints(n).read().bits()
-        } >> self.offset();
+        let r = if on_core0() { p.proc0_ints(n).read().bits() } else { p.proc1_ints(n).read().bits() } >> self.offset();
         let m = i as u32;
         r & m == m
     }
     fn inter_enabled(&self, i: PinInterrupt) -> bool {
         let (p, n) = (unsafe { &*IO_BANK0::PTR }, (*self as usize) / 8);
-        let r = if on_core0() {
-            p.proc0_inte(n).read().bits()
-        } else {
-            p.proc1_inte(n).read().bits()
-        } >> self.offset();
+        let r = if on_core0() { p.proc0_inte(n).read().bits() } else { p.proc1_inte(n).read().bits() } >> self.offset();
         let m = i as u32;
         r & m == m
     }
@@ -393,11 +381,7 @@ impl<F: PinIO> Pin<F> {
     }
     #[inline]
     pub fn get_slew(&self) -> PinSlew {
-        if self.i.ctrl().read().slewfast().bit_is_set() {
-            PinSlew::Fast
-        } else {
-            PinSlew::Slow
-        }
+        if self.i.ctrl().read().slewfast().bit_is_set() { PinSlew::Fast } else { PinSlew::Slow }
     }
     #[inline]
     pub fn set_slew(&self, s: PinSlew) {
@@ -814,7 +798,7 @@ mod pins {
             (PinID::Pin10, PinID::Pin11) => Some(I2cID::I2C1),
             (PinID::Pin14, PinID::Pin15) => Some(I2cID::I2C1),
             (PinID::Pin18, PinID::Pin19) => Some(I2cID::I2C1),
-            (PinID::Pin22, PinID::Pin23) => Some(I2cID::I2C1), // NOTE(dij): Rare
+            (PinID::Pin22, PinID::Pin23) => Some(I2cID::I2C1), // NOTE(sf): Rare
             (PinID::Pin26, PinID::Pin27) => Some(I2cID::I2C1),
             (..) => None,
         }
@@ -844,11 +828,7 @@ mod pins {
             (SpiID::Spi1, Some(PinID::Pin9 | PinID::Pin13)) => true,
             (..) => false,
         };
-        if r && c {
-            Some(d)
-        } else {
-            None
-        }
+        if r && c { Some(d) } else { None }
     }
     pub(crate) fn pins_for_uart(tx: &PinID, rx: &PinID, cts: Option<&PinID>, rts: Option<&PinID>) -> Option<UartID> {
         let d = match (tx, rx) {
@@ -876,11 +856,7 @@ mod pins {
             (UartID::Uart1, Some(PinID::Pin7 | PinID::Pin11 | PinID::Pin27)) => true,
             (..) => false,
         };
-        if r && c {
-            Some(d)
-        } else {
-            None
-        }
+        if r && c { Some(d) } else { None }
     }
 
     #[inline(always)]
@@ -978,11 +954,7 @@ mod pins {
             (SpiID::Spi0, Some(PinID::Pin1 | PinID::Pin5)) => true,
             (..) => false,
         };
-        if r && c {
-            Some(d)
-        } else {
-            None
-        }
+        if r && c { Some(d) } else { None }
     }
     pub(crate) fn pins_for_uart(tx: &PinID, rx: &PinID, cts: Option<&PinID>, rts: Option<&PinID>) -> Option<UartID> {
         let d = match (tx, rx) {
@@ -1006,11 +978,7 @@ mod pins {
             (UartID::Uart1, Some(PinID::Pin7 | PinID::Pin27)) => true,
             (..) => false,
         };
-        if r && c {
-            Some(d)
-        } else {
-            None
-        }
+        if r && c { Some(d) } else { None }
     }
 
     #[inline(always)]
@@ -1102,11 +1070,7 @@ mod pins {
             (SpiID::Spi0, Some(PinID::Pin1)) => true,
             (..) => false,
         };
-        if r && c {
-            Some(d)
-        } else {
-            None
-        }
+        if r && c { Some(d) } else { None }
     }
     pub(crate) fn pins_for_uart(tx: &PinID, rx: &PinID, cts: Option<&PinID>, rts: Option<&PinID>) -> Option<UartID> {
         let d = match (tx, rx) {
@@ -1127,11 +1091,7 @@ mod pins {
             (UartID::Uart0, Some(PinID::Pin3)) => true,
             (..) => false,
         };
-        if r && c {
-            Some(d)
-        } else {
-            None
-        }
+        if r && c { Some(d) } else { None }
     }
 
     #[inline(always)]

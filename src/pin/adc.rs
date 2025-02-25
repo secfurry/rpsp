@@ -28,7 +28,7 @@ use core::option::Option::{self, Some};
 use core::result::Result::{self, Err, Ok};
 
 use crate::asm::{delay, nop};
-use crate::atomic::{with, Mutex};
+use crate::atomic::{Mutex, with};
 use crate::clock::DIV;
 use crate::dma::{DmaReader, DmaWord};
 use crate::pac::{ADC, CLOCKS, IO_BANK0, RESETS};
@@ -74,8 +74,8 @@ impl AdcPin {
     }
     pub fn new(p: Pin<Input>) -> Result<AdcPin, PinInvalidError> {
         prepare_adc();
-        // NOTE(dij): These never change based on the board config, so it can be
-        //            here.
+        // NOTE(sf): These never change based on the board config, so it can be
+        //           here.
         let i = match &p.i {
             PinID::Pin26 => AdcChannel::Chan0,
             PinID::Pin27 => AdcChannel::Chan1,
