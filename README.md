@@ -28,8 +28,12 @@ __OF THE PINS USED__.
 
 I'm open to more devices, I just don't have examples to use ^_^
 
-If you'd like to contribute, pinouts are located in `src/pin.rs` _(Eventually I might_
-_automate pin layout generation?)_
+If you'd like to contribute, pinouts are generated from layout text files in the
+`boards/data` directory. These are converted into `.rs` files via the `generate.py`
+python script in `boards`. This will write board files into the `src/pin/boards`
+directory and updates the `src/pin/boards/lib.rs` with all the tags and modules.
+The text format is pretty simple, it takes the Pin number and it's capabilities
+for each line, but I'll make some proper documentation soon.
 
 ## Note
 
@@ -276,5 +280,6 @@ Theres alot of more examples I need to add..
 
 - CYW Driver
   - Networking??
+- Document Board layout format
 
 License for the CYW driver is [here](src/cyw/firmware/LICENSE-permissive-binary-license-1.0.txt)
