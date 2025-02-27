@@ -26,10 +26,10 @@ use core::clone::Clone;
 use core::marker::{Copy, PhantomData};
 
 use crate::int::Acknowledge;
-use crate::pac::pwm::CH;
 use crate::pac::PWM;
-use crate::pin::gpio::{Input, Output};
+use crate::pac::pwm::CH;
 use crate::pin::PinIO;
+use crate::pin::gpio::{Input, Output};
 use crate::write_reg;
 
 #[repr(u8)]
@@ -161,11 +161,7 @@ impl PwmID {
             if both {
                 r.a().bits(v).b().bits(v)
             } else {
-                if self.is_b() {
-                    r.b().bits(v)
-                } else {
-                    r.a().bits(v)
-                }
+                if self.is_b() { r.b().bits(v) } else { r.a().bits(v) }
             }
         })
     }
@@ -175,11 +171,7 @@ impl PwmID {
             if both {
                 r.a_inv().bit(inv).b_inv().bit(inv)
             } else {
-                if self.is_b() {
-                    r.b_inv().bit(inv)
-                } else {
-                    r.a_inv().bit(inv)
-                }
+                if self.is_b() { r.b_inv().bit(inv) } else { r.a_inv().bit(inv) }
             }
         })
     }

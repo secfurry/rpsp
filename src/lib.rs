@@ -33,7 +33,7 @@ pub static BOOT2_FIRMWARE: [u8; 256] = *include_bytes!("../bin/rp2040_pico_boot2
 
 // Save the extra imports
 pub use cortex_m::asm;
-pub use cortex_m_rt::{exception, ExceptionFrame};
+pub use cortex_m_rt::{ExceptionFrame, exception};
 pub use rp2040_hal_macros::entry;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -83,9 +83,9 @@ mod pac {
 mod debug {
     extern crate core;
 
+    use crate::Pico;
     use crate::pin::PinID;
     use crate::uart::{Uart, UartConfig, UartDev};
-    use crate::Pico;
 
     #[inline]
     pub fn uart_debug() -> Uart {

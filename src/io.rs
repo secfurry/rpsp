@@ -80,11 +80,7 @@ pub trait Read<E> {
                 Err(e) => return Err(e),
             }
         }
-        if b.is_empty() {
-            Ok(())
-        } else {
-            Err(Error::UnexpectedEof)
-        }
+        if b.is_empty() { Ok(()) } else { Err(Error::UnexpectedEof) }
     }
 }
 pub trait Write<E> {

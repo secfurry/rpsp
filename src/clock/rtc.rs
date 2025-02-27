@@ -164,11 +164,7 @@ impl RtcClock {
             a.sec().bits(),
             a.dotw().bits().into(),
         );
-        if !d.is_valid() {
-            Err(RtcError::InvalidTime)
-        } else {
-            Ok(d)
-        }
+        if !d.is_valid() { Err(RtcError::InvalidTime) } else { Ok(d) }
     }
 }
 

@@ -31,12 +31,12 @@ use core::option::Option::{self, None, Some};
 use core::ptr::NonNull;
 use core::result::Result::{self, Err, Ok};
 
+use crate::Pico;
 use crate::asm::nop;
 use crate::i2c::mode::{Controller, Peripheral, State};
 use crate::pac::i2c0::RegisterBlock;
 use crate::pac::{I2C0, I2C1, RESETS};
-use crate::pin::{pins_for_i2c, I2cID, PinFunction, PinID};
-use crate::Pico;
+use crate::pin::{I2cID, PinFunction, PinID, pins_i2c};
 
 pub enum I2cError {
     WouldBlock,
@@ -261,11 +261,7 @@ impl I2c<Controller> {
     #[inline]
     fn check_errors_break(&self) -> Result<(), I2cError> {
         let e = self.check_errors();
-        if e > 0 {
-            Err(abort_type(e))
-        } else {
-            Ok(())
-        }
+        if e > 0 { Err(abort_type(e)) } else { Ok(()) }
     }
     fn prepare(&self, addr: I2cAddress) -> Result<(), I2cError> {
         if !addr.is_valid() {
@@ -309,11 +305,7 @@ impl I2c<Controller> {
             }
             self.ptr().ic_clr_stop_det().read().clr_stop_det();
         }
-        if e > 0 {
-            Err(abort_type(e))
-        } else {
-            Ok(())
-        }
+        if e > 0 { Err(abort_type(e)) } else { Ok(()) }
     }
     fn write_raw(&self, init: bool, stop: bool, b: &[u8]) -> Result<usize, I2cError> {
         if b.is_empty() {
@@ -405,7 +397,7 @@ impl<M: I2cMode> I2c<M> {
         if c > l - 2 {
             return Err(I2cError::InvalidFrequency);
         }
-        let v = pins_for_i2c(&sda, &scl).ok_or(I2cError::InvalidPins)?;
+        let v = pins_i2c(&sda, &scl).ok_or(I2cError::InvalidPins)?;
         let r = unsafe { RESETS::steal() };
         let d = match v {
             I2cID::I2C0 => {
@@ -465,7 +457,7 @@ impl<M: I2cMode> I2c<M> {
         if !addr.is_valid() {
             return Err(I2cError::InvalidAddress);
         }
-        let v = pins_for_i2c(&sda, &scl).ok_or(I2cError::InvalidPins)?;
+        let v = pins_i2c(&sda, &scl).ok_or(I2cError::InvalidPins)?;
         let r = unsafe { RESETS::steal() };
         let d = match v {
             I2cID::I2C0 => {
@@ -530,13 +522,11 @@ impl<M: I2cMode> I2c<M> {
 
     pub fn close(&self) {
         let r = unsafe { RESETS::steal() };
-        r.reset().modify(|_, r| {
-            if self.dev.as_ptr().addr() == I2C0::PTR.addr() {
-                r.i2c0().set_bit()
-            } else {
-                r.i2c1().set_bit()
-            }
-        });
+        r.reset().modify(
+            |_, r| {
+                if self.dev.as_ptr().addr() == I2C0::PTR.addr() { r.i2c0().set_bit() } else { r.i2c1().set_bit() }
+            },
+        );
     }
     #[inline]
     pub fn rx_used(&self) -> u8 {

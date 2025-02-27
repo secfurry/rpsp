@@ -29,12 +29,12 @@ use core::ptr::NonNull;
 use core::result::Result::{self, Err, Ok};
 use core::unreachable;
 
+use crate::Pico;
 use crate::asm::nop;
 use crate::dma::{DmaReader, DmaWriter};
 use crate::pac::uart0::RegisterBlock;
 use crate::pac::{RESETS, UART0, UART1};
-use crate::pin::{pins_for_uart, PinFunction, PinID, UartID};
-use crate::Pico;
+use crate::pin::{PinFunction, PinID, UartID, pins_uart};
 
 #[repr(u8)]
 pub enum UartBits {
@@ -194,11 +194,7 @@ impl Uart {
     }
     #[inline]
     pub fn flush(&mut self) -> Result<(), UartError> {
-        if self.ptr().uartfr().read().busy().bit_is_set() {
-            Err(UartError::WouldBlock)
-        } else {
-            Ok(())
-        }
+        if self.ptr().uartfr().read().busy().bit_is_set() { Err(UartError::WouldBlock) } else { Ok(()) }
     }
     #[inline]
     pub fn set_tx_watermark(&mut self, w: UartWatermark) {
@@ -282,7 +278,7 @@ impl UartDev {
 
     #[inline(always)]
     fn id(&self) -> Option<UartID> {
-        pins_for_uart(&self.tx, &self.rx, self.cts.as_ref(), self.rts.as_ref())
+        pins_uart(&self.tx, &self.rx, self.cts.as_ref(), self.rts.as_ref())
     }
     fn device(&self) -> Option<*const RegisterBlock> {
         let v = match self.id() {
@@ -418,11 +414,7 @@ impl Debug for UartError {
 impl DmaReader<u8> for Uart {
     #[inline]
     fn rx_req(&self) -> Option<u8> {
-        Some(if self.dev.as_ptr().addr() == UART0::PTR.addr() {
-            0x15
-        } else {
-            0x17
-        })
+        Some(if self.dev.as_ptr().addr() == UART0::PTR.addr() { 0x15 } else { 0x17 })
     }
     #[inline(always)]
     fn rx_info(&self) -> (u32, u32) {
@@ -436,11 +428,7 @@ impl DmaReader<u8> for Uart {
 impl DmaWriter<u8> for Uart {
     #[inline]
     fn tx_req(&self) -> Option<u8> {
-        Some(if self.dev.as_ptr().addr() == UART0::PTR.addr() {
-            0x14
-        } else {
-            0x16
-        })
+        Some(if self.dev.as_ptr().addr() == UART0::PTR.addr() { 0x14 } else { 0x16 })
     }
     #[inline(always)]
     fn tx_info(&self) -> (u32, u32) {

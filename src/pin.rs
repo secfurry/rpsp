@@ -38,8 +38,11 @@ use crate::pin::gpio::{Input, Output};
 use crate::pin::pwm::{PwmID, PwmPin};
 use crate::{Pico, write_reg};
 
+#[path = "pin/boards/lib.rs"]
+mod boards;
+
 #[cfg_attr(rustfmt, rustfmt_skip)]
-pub use self::pins::*;
+pub use self::boards::pins::*;
 
 pub mod adc;
 pub mod led;
@@ -107,6 +110,25 @@ pub trait PinIO {
 
 pub type PinInput = Pin<Input>;
 pub type PinOutput = Pin<Output>;
+
+#[allow(unused)]
+// In case any boards don't use all I2C busses.
+pub(super) enum I2cID {
+    I2C0,
+    I2C1,
+}
+#[allow(unused)]
+// In case any boards don't use all SPI busses.
+pub(super) enum SpiID {
+    Spi0,
+    Spi1,
+}
+#[allow(unused)]
+// In case any boards don't use all UART busses.
+pub(super) enum UartID {
+    Uart0,
+    Uart1,
+}
 
 impl PinID {
     #[inline]
@@ -273,7 +295,7 @@ impl Pin<Input> {
     }
     #[inline]
     pub fn into_pwm(self) -> Option<PwmPin<Input>> {
-        let i = pins_for_pwm(&self.i);
+        let i = pins_pwm(&self.i);
         if i.is_b() {
             return None;
         }
@@ -350,7 +372,7 @@ impl Pin<Output> {
         }
     }
     pub fn into_pwm(self) -> PwmPin<Output> {
-        let i = pins_for_pwm(&self.i);
+        let i = pins_pwm(&self.i);
         self.i.set_function(PinFunction::Pwm);
         i.set_state(true);
         PwmPin::<Output>::new(i)
@@ -710,404 +732,4 @@ fn on_core0() -> bool {
 pub mod gpio {
     pub struct Input;
     pub struct Output;
-}
-
-#[cfg(feature = "pico")]
-mod pins {
-    extern crate core;
-
-    use core::option::Option::{self, None, Some};
-
-    use crate::pin::pwm::PwmID;
-
-    /// Pins for the Pico/PicoW
-    #[repr(u8)]
-    pub enum PinID {
-        Pin0  = 0x00u8,
-        Pin1  = 0x01u8,
-        Pin2  = 0x02u8,
-        Pin3  = 0x03u8,
-        Pin4  = 0x04u8,
-        Pin5  = 0x05u8,
-        Pin6  = 0x06u8,
-        Pin7  = 0x07u8,
-        Pin8  = 0x08u8,
-        Pin9  = 0x09u8,
-        Pin10 = 0x0Au8,
-        Pin11 = 0x0Bu8,
-        Pin12 = 0x0Cu8,
-        Pin13 = 0x0Du8,
-        Pin14 = 0x0Eu8,
-        Pin15 = 0x0Fu8,
-        Pin16 = 0x10u8,
-        Pin17 = 0x11u8,
-        Pin18 = 0x12u8,
-        Pin19 = 0x13u8,
-        Pin20 = 0x14u8,
-        Pin21 = 0x15u8,
-        Pin22 = 0x16u8,
-        /// Pin23 has different functions based on Pico/PicoW
-        /// - Pico  : RT6150B-33GQW Power-Select
-        /// - PicoW : Power enable for the Cyw Wireless chip
-        Pin23 = 0x17u8, // Pin23: OP wireless power on signal
-        /// Pin24 has different functions based on Pico/PicoW
-        /// - Pico  : VBUS Sense
-        /// - PicoW : Cyw SPI Data/IRQ
-        Pin24 = 0x18u8, // Pin24: OP/IP wireless SPI data/IRQ
-        /// Pin25 has different functions based on Pico/PicoW
-        /// - Pico  : User LED
-        /// - PicoW : Cyw SPI chip select
-        Pin25 = 0x19u8,
-        /// ADC Pin0
-        Pin26 = 0x1Au8,
-        /// ADC Pin1
-        Pin27 = 0x1Bu8,
-        /// ADC Pin2
-        Pin28 = 0x1Cu8,
-        /// Pin29 has different functions based on Pico/PicoW
-        /// - Pico  : VSYS read pin, technically ADC Pin3
-        /// - PicoW : Cyw SPI clock
-        Pin29 = 0x1Du8,
-    }
-
-    pub(crate) enum I2cID {
-        I2C0,
-        I2C1,
-    }
-    pub(crate) enum SpiID {
-        Spi0,
-        Spi1,
-    }
-    pub(crate) enum UartID {
-        Uart0,
-        Uart1,
-    }
-
-    #[inline]
-    pub(crate) fn pins_for_i2c(sda: &PinID, scl: &PinID) -> Option<I2cID> {
-        match (sda, scl) {
-            (PinID::Pin0, PinID::Pin1) => Some(I2cID::I2C0),
-            (PinID::Pin4, PinID::Pin5) => Some(I2cID::I2C0),
-            (PinID::Pin8, PinID::Pin9) => Some(I2cID::I2C0),
-            (PinID::Pin12, PinID::Pin13) => Some(I2cID::I2C0),
-            (PinID::Pin16, PinID::Pin17) => Some(I2cID::I2C0),
-            (PinID::Pin20, PinID::Pin21) => Some(I2cID::I2C0),
-            (PinID::Pin28, PinID::Pin29) => Some(I2cID::I2C0),
-            (PinID::Pin2, PinID::Pin3) => Some(I2cID::I2C1),
-            (PinID::Pin6, PinID::Pin7) => Some(I2cID::I2C1),
-            (PinID::Pin10, PinID::Pin11) => Some(I2cID::I2C1),
-            (PinID::Pin14, PinID::Pin15) => Some(I2cID::I2C1),
-            (PinID::Pin18, PinID::Pin19) => Some(I2cID::I2C1),
-            (PinID::Pin22, PinID::Pin23) => Some(I2cID::I2C1), // NOTE(sf): Rare
-            (PinID::Pin26, PinID::Pin27) => Some(I2cID::I2C1),
-            (..) => None,
-        }
-    }
-    pub(crate) fn pins_for_spi(tx: &PinID, sck: &PinID, rx: Option<&PinID>, cs: Option<&PinID>) -> Option<SpiID> {
-        let d = match (tx, sck) {
-            (PinID::Pin3, PinID::Pin2) => SpiID::Spi0,
-            (PinID::Pin7, PinID::Pin6) => SpiID::Spi0,
-            (PinID::Pin19, PinID::Pin18) => SpiID::Spi0,
-            (PinID::Pin11, PinID::Pin10) => SpiID::Spi1,
-            (PinID::Pin15, PinID::Pin14) => SpiID::Spi1,
-            (PinID::Pin27, PinID::Pin26) => SpiID::Spi1,
-            _ => return None,
-        };
-        if rx.is_none() && cs.is_none() {
-            return Some(d);
-        }
-        let r = match (&d, rx) {
-            (_, None) => true,
-            (SpiID::Spi0, Some(PinID::Pin0 | PinID::Pin4 | PinID::Pin16 | PinID::Pin20)) => true,
-            (SpiID::Spi1, Some(PinID::Pin8 | PinID::Pin12 | PinID::Pin28)) => true,
-            (..) => false,
-        };
-        let c = match (&d, cs) {
-            (_, None) => true,
-            (SpiID::Spi0, Some(PinID::Pin1 | PinID::Pin5 | PinID::Pin17 | PinID::Pin21)) => true,
-            (SpiID::Spi1, Some(PinID::Pin9 | PinID::Pin13)) => true,
-            (..) => false,
-        };
-        if r && c { Some(d) } else { None }
-    }
-    pub(crate) fn pins_for_uart(tx: &PinID, rx: &PinID, cts: Option<&PinID>, rts: Option<&PinID>) -> Option<UartID> {
-        let d = match (tx, rx) {
-            (PinID::Pin0, PinID::Pin1) => UartID::Uart0,
-            (PinID::Pin12, PinID::Pin13) => UartID::Uart0,
-            (PinID::Pin16, PinID::Pin17) => UartID::Uart0,
-            (PinID::Pin28, PinID::Pin29) => UartID::Uart0,
-            (PinID::Pin4, PinID::Pin5) => UartID::Uart1,
-            (PinID::Pin8, PinID::Pin9) => UartID::Uart1,
-            (PinID::Pin20, PinID::Pin21) => UartID::Uart1,
-            _ => return None,
-        };
-        if cts.is_none() && rts.is_none() {
-            return Some(d);
-        }
-        let c = match (&d, cts) {
-            (_, None) => true,
-            (UartID::Uart0, Some(PinID::Pin2 | PinID::Pin14 | PinID::Pin18)) => true,
-            (UartID::Uart1, Some(PinID::Pin6 | PinID::Pin10 | PinID::Pin22 | PinID::Pin26)) => true,
-            (..) => false,
-        };
-        let r = match (&d, rts) {
-            (_, None) => true,
-            (UartID::Uart0, Some(PinID::Pin3 | PinID::Pin15 | PinID::Pin19)) => true,
-            (UartID::Uart1, Some(PinID::Pin7 | PinID::Pin11 | PinID::Pin27)) => true,
-            (..) => false,
-        };
-        if r && c { Some(d) } else { None }
-    }
-
-    #[inline(always)]
-    pub(super) fn pins_for_pwm(pin: &PinID) -> PwmID {
-        match pin {
-            PinID::Pin0 | PinID::Pin16 => PwmID::Pwm0A,
-            PinID::Pin1 | PinID::Pin17 => PwmID::Pwm0B,
-            PinID::Pin2 | PinID::Pin18 => PwmID::Pwm1A,
-            PinID::Pin3 | PinID::Pin19 => PwmID::Pwm1B,
-            PinID::Pin4 | PinID::Pin20 => PwmID::Pwm2A,
-            PinID::Pin5 | PinID::Pin21 => PwmID::Pwm2B,
-            PinID::Pin6 | PinID::Pin22 => PwmID::Pwm3A,
-            PinID::Pin7 | PinID::Pin23 => PwmID::Pwm3B,
-            PinID::Pin8 | PinID::Pin24 => PwmID::Pwm4A,
-            PinID::Pin9 | PinID::Pin25 => PwmID::Pwm4B,
-            PinID::Pin10 | PinID::Pin26 => PwmID::Pwm5A,
-            PinID::Pin11 | PinID::Pin27 => PwmID::Pwm5B,
-            PinID::Pin12 | PinID::Pin28 => PwmID::Pwm6A,
-            PinID::Pin13 | PinID::Pin29 => PwmID::Pwm6B,
-            PinID::Pin14 => PwmID::Pwm7A,
-            PinID::Pin15 => PwmID::Pwm7B,
-        }
-    }
-}
-#[cfg(feature = "tiny2040")]
-mod pins {
-    extern crate core;
-
-    use core::option::Option::{self, None, Some};
-
-    use crate::pin::pwm::PwmID;
-
-    /// Pins for the Tiny2040
-    #[repr(u8)]
-    pub enum PinID {
-        Pin0  = 0x00u8,
-        Pin1  = 0x01u8,
-        Pin2  = 0x02u8,
-        Pin3  = 0x03u8,
-        Pin4  = 0x04u8,
-        Pin5  = 0x05u8,
-        Pin6  = 0x06u8,
-        Pin7  = 0x07u8,
-        /// ADC Pin0
-        Pin26 = 0x1Au8,
-        /// ADC Pin1
-        Pin27 = 0x1Bu8,
-        /// ADC Pin2
-        Pin28 = 0x1Cu8,
-        /// ADC Pin3
-        Pin29 = 0x1Du8,
-    }
-
-    pub(crate) enum I2cID {
-        I2C0,
-        I2C1,
-    }
-    pub(crate) enum SpiID {
-        Spi0,
-        Spi1,
-    }
-    pub(crate) enum UartID {
-        Uart0,
-        Uart1,
-    }
-
-    #[inline]
-    pub(crate) fn pins_for_i2c(sda: &PinID, scl: &PinID) -> Option<I2cID> {
-        match (sda, scl) {
-            (PinID::Pin0, PinID::Pin1) => Some(I2cID::I2C0),
-            (PinID::Pin4, PinID::Pin5) => Some(I2cID::I2C0),
-            (PinID::Pin28, PinID::Pin29) => Some(I2cID::I2C0),
-            (PinID::Pin2, PinID::Pin3) => Some(I2cID::I2C1),
-            (PinID::Pin6, PinID::Pin7) => Some(I2cID::I2C1),
-            (PinID::Pin26, PinID::Pin27) => Some(I2cID::I2C1),
-            (..) => None,
-        }
-    }
-    pub(crate) fn pins_for_spi(tx: &PinID, sck: &PinID, rx: Option<&PinID>, cs: Option<&PinID>) -> Option<SpiID> {
-        let d = match (tx, sck) {
-            (PinID::Pin3, PinID::Pin2) => SpiID::Spi0,
-            (PinID::Pin7, PinID::Pin6) => SpiID::Spi0,
-            _ => return None,
-        };
-        if rx.is_none() && cs.is_none() {
-            return Some(d);
-        }
-        let r = match (&d, rx) {
-            (_, None) => true,
-            (SpiID::Spi0, Some(PinID::Pin0 | PinID::Pin4)) => true,
-            (..) => false,
-        };
-        let c = match (&d, cs) {
-            (_, None) => true,
-            (SpiID::Spi0, Some(PinID::Pin1 | PinID::Pin5)) => true,
-            (..) => false,
-        };
-        if r && c { Some(d) } else { None }
-    }
-    pub(crate) fn pins_for_uart(tx: &PinID, rx: &PinID, cts: Option<&PinID>, rts: Option<&PinID>) -> Option<UartID> {
-        let d = match (tx, rx) {
-            (PinID::Pin0, PinID::Pin1) => UartID::Uart0,
-            (PinID::Pin28, PinID::Pin29) => UartID::Uart0,
-            (PinID::Pin4, PinID::Pin5) => UartID::Uart1,
-            _ => return None,
-        };
-        if cts.is_none() && rts.is_none() {
-            return Some(d);
-        }
-        let c = match (&d, cts) {
-            (_, None) => true,
-            (UartID::Uart0, Some(PinID::Pin2)) => true,
-            (UartID::Uart1, Some(PinID::Pin6 | PinID::Pin26)) => true,
-            (..) => false,
-        };
-        let r = match (&d, rts) {
-            (_, None) => true,
-            (UartID::Uart0, Some(PinID::Pin3)) => true,
-            (UartID::Uart1, Some(PinID::Pin7 | PinID::Pin27)) => true,
-            (..) => false,
-        };
-        if r && c { Some(d) } else { None }
-    }
-
-    #[inline(always)]
-    pub(super) fn pins_for_pwm(pin: &PinID) -> PwmID {
-        match pin {
-            PinID::Pin0 => PwmID::Pwm0A,
-            PinID::Pin1 => PwmID::Pwm0B,
-            PinID::Pin2 => PwmID::Pwm1A,
-            PinID::Pin3 => PwmID::Pwm1B,
-            PinID::Pin4 => PwmID::Pwm2A,
-            PinID::Pin5 => PwmID::Pwm2B,
-            PinID::Pin6 => PwmID::Pwm3A,
-            PinID::Pin7 => PwmID::Pwm3B,
-            PinID::Pin26 => PwmID::Pwm5A,
-            PinID::Pin27 => PwmID::Pwm5B,
-            PinID::Pin28 => PwmID::Pwm6A,
-            PinID::Pin29 => PwmID::Pwm6B,
-        }
-    }
-}
-#[cfg(feature = "xiao2040")]
-mod pins {
-    extern crate core;
-
-    use core::option::Option::{self, None, Some};
-
-    use crate::pin::pwm::PwmID;
-
-    /// Pins for the XIAO RP2040
-    #[repr(u8)]
-    pub enum PinID {
-        Pin0  = 0x00u8,
-        Pin1  = 0x01u8,
-        Pin2  = 0x02u8,
-        Pin3  = 0x03u8,
-        Pin4  = 0x04u8,
-        Pin6  = 0x06u8,
-        Pin7  = 0x07u8,
-        /// ADC Pin0
-        Pin26 = 0x1Au8,
-        /// ADC Pin1
-        Pin27 = 0x1Bu8,
-        /// ADC Pin2
-        Pin28 = 0x1Cu8,
-        /// ADC Pin3
-        Pin29 = 0x1Du8,
-    }
-
-    pub(crate) enum I2cID {
-        I2C0,
-        I2C1,
-    }
-    pub(crate) enum SpiID {
-        Spi0,
-        Spi1,
-    }
-    pub(crate) enum UartID {
-        Uart0,
-        Uart1,
-    }
-
-    #[inline]
-    pub(crate) fn pins_for_i2c(sda: &PinID, scl: &PinID) -> Option<I2cID> {
-        match (sda, scl) {
-            (PinID::Pin0, PinID::Pin1) => Some(I2cID::I2C0),
-            (PinID::Pin28, PinID::Pin29) => Some(I2cID::I2C0),
-            (PinID::Pin2, PinID::Pin3) => Some(I2cID::I2C1),
-            (PinID::Pin6, PinID::Pin7) => Some(I2cID::I2C1),
-            (PinID::Pin26, PinID::Pin27) => Some(I2cID::I2C1),
-            (..) => None,
-        }
-    }
-    pub(crate) fn pins_for_spi(tx: &PinID, sck: &PinID, rx: Option<&PinID>, cs: Option<&PinID>) -> Option<SpiID> {
-        let d = match (tx, sck) {
-            (PinID::Pin3, PinID::Pin2) => SpiID::Spi0,
-            (PinID::Pin7, PinID::Pin6) => SpiID::Spi0,
-            _ => return None,
-        };
-        if rx.is_none() && cs.is_none() {
-            return Some(d);
-        }
-        let r = match (&d, rx) {
-            (_, None) => true,
-            (SpiID::Spi0, Some(PinID::Pin4)) => true,
-            (..) => false,
-        };
-        let c = match (&d, cs) {
-            (_, None) => true,
-            (SpiID::Spi0, Some(PinID::Pin1)) => true,
-            (..) => false,
-        };
-        if r && c { Some(d) } else { None }
-    }
-    pub(crate) fn pins_for_uart(tx: &PinID, rx: &PinID, cts: Option<&PinID>, rts: Option<&PinID>) -> Option<UartID> {
-        let d = match (tx, rx) {
-            (PinID::Pin0, PinID::Pin1) => UartID::Uart0,
-            (PinID::Pin28, PinID::Pin29) => UartID::Uart0,
-            _ => return None,
-        };
-        if cts.is_none() && rts.is_none() {
-            return Some(d);
-        }
-        let c = match (&d, cts) {
-            (_, None) => true,
-            (UartID::Uart0, Some(PinID::Pin2)) => true,
-            (..) => false,
-        };
-        let r = match (&d, rts) {
-            (_, None) => true,
-            (UartID::Uart0, Some(PinID::Pin3)) => true,
-            (..) => false,
-        };
-        if r && c { Some(d) } else { None }
-    }
-
-    #[inline(always)]
-    pub(super) fn pins_for_pwm(pin: &PinID) -> PwmID {
-        match pin {
-            PinID::Pin0 => PwmID::Pwm0A,
-            PinID::Pin1 => PwmID::Pwm0B,
-            PinID::Pin2 => PwmID::Pwm1A,
-            PinID::Pin3 => PwmID::Pwm1B,
-            PinID::Pin4 => PwmID::Pwm2A,
-            PinID::Pin6 => PwmID::Pwm3A,
-            PinID::Pin7 => PwmID::Pwm3B,
-            PinID::Pin26 => PwmID::Pwm5A,
-            PinID::Pin27 => PwmID::Pwm5B,
-            PinID::Pin28 => PwmID::Pwm6A,
-            PinID::Pin29 => PwmID::Pwm6B,
-        }
-    }
 }

@@ -37,7 +37,7 @@ use crate::pac::pio0::{RegisterBlock, SM};
 use crate::pac::{PIO0, PIO1, RESETS};
 use crate::pin::{PinDirection, PinID, PinState};
 use crate::pio::state::{Running, Stopped, Uninit};
-use crate::{write_reg, Pico};
+use crate::{Pico, write_reg};
 
 mod config;
 mod group;

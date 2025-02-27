@@ -1,0 +1,70 @@
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+
+// Board Layout File
+//  Use the "generate.py" script to generate the ".rs" file for this layout.
+
+Raspberry Pi Pico[W]
+#pico
+
+ 0: I2C0_SDA, SPI0_RX,  UART0_TX
+ 1: I2C0_SCL, SPI0_CS,  UART0_RX
+ 2: I2C1_SDA, SPI0_SCK, UART0_CTS
+ 3: I2C1_SCL, SPI0_TX,  UART0_RTS
+ 4: I2C0_SDA, SPI0_RX,  UART1_TX
+ 5: I2C0_SCL, SPI0_CS,  UART1_RX
+ 6: I2C1_SDA, SPI0_SCK, UART1_CTS
+ 7: I2C1_SCL, SPI0_TX,  UART1_RTS
+ 8: I2C0_SDA, SPI1_RX,  UART1_TX
+ 9: I2C0_SCL, SPI1_CS,  UART1_RX
+10: I2C1_SDA, SPI1_SCK, UART1_CTS
+11: I2C1_SCL, SPI1_TX,  UART1_RTS
+12: I2C0_SDA, SPI1_RX,  UART0_TX
+13: I2C0_SCL, SPI1_CS,  UART0_RX
+14: I2C1_SDA, SPI1_SCK, UART0_CTS
+15: I2C1_SCL, SPI1_TX,  UART0_RTS
+16: I2C0_SDA, SPI0_RX,  UART0_TX
+17: I2C0_SCL, SPI0_CS,  UART0_RX
+18: I2C1_SDA, SPI0_SCK, UART0_CTS
+19: I2C1_SCL, SPI0_TX,  UART0_RTS
+20: I2C0_SDA, SPI0_RX,  UART1_TX
+21: I2C0_SCL, SPI0_CS,  UART1_RX
+22: I2C1_SDA, SPI0_SCK, UART1_CTS
+// Pin23 has different functions based on Pico/PicoW
+// - Pico  : RT6150B-33GQW Power-Select
+// - PicoW : Power enable for the Cyw Wireless chip
+23: -
+// Pin24 has different functions based on Pico/PicoW
+// - Pico  : VBUS Sense
+// - PicoW : Cyw SPI Data/IRQ
+24: -
+// Pin25 has different functions based on Pico/PicoW
+// - Pico  : User LED
+// - PicoW : Cyw SPI chip select
+25: -
+// ADC Pin0
+26: I2C1_SDA, SPI1_SCK, UART1_CTS
+// ADC Pin1
+27: I2C1_SCL, SPI1_TX,  UART1_RTS
+// ADC Pin2
+28: I2C0_SDA, SPI1_RX,  UART0_TX
+// Pin29 has different functions based on Pico/PicoW
+// - Pico  : VSYS read pin, technically ADC Pin3
+// - PicoW : Cyw SPI clock
+29: -

@@ -32,12 +32,12 @@ use core::ptr::NonNull;
 use core::result::Result::{self, Err, Ok};
 use core::{cmp, matches};
 
+use crate::Pico;
 use crate::asm::nop;
 use crate::dma::{DmaReader, DmaWriter};
 use crate::pac::spi0::RegisterBlock;
 use crate::pac::{RESETS, SPI0, SPI1};
-use crate::pin::{pins_for_spi, PinFunction, PinID, SpiID};
-use crate::Pico;
+use crate::pin::{PinFunction, PinID, SpiID, pins_spi};
 
 pub enum SpiError {
     WouldBlock,
@@ -225,7 +225,7 @@ impl SpiDev {
 
     #[inline(always)]
     fn id(&self) -> Option<SpiID> {
-        pins_for_spi(&self.tx, &self.sck, self.rx.as_ref(), self.cs.as_ref())
+        pins_spi(&self.tx, &self.sck, self.rx.as_ref(), self.cs.as_ref())
     }
     fn device(&self) -> Option<*const RegisterBlock> {
         let v = match self.id() {
@@ -310,11 +310,7 @@ impl SpiIO<u8> for Spi {
     }
     #[inline]
     fn recv_single(&mut self) -> Option<u8> {
-        if self.is_readable() {
-            Some(self.ptr().sspdr().read().data().bits() as _)
-        } else {
-            None
-        }
+        if self.is_readable() { Some(self.ptr().sspdr().read().data().bits() as _) } else { None }
     }
     fn transfer_single(&mut self, v: u8) -> u8 {
         let p = self.ptr();
@@ -393,11 +389,7 @@ impl SpiIO<u16> for Spi {
     }
     #[inline]
     fn recv_single(&mut self) -> Option<u16> {
-        if self.is_readable() {
-            Some(self.ptr().sspdr().read().data().bits() as _)
-        } else {
-            None
-        }
+        if self.is_readable() { Some(self.ptr().sspdr().read().data().bits() as _) } else { None }
     }
     fn transfer_single(&mut self, v: u16) -> u16 {
         let p = self.ptr();
@@ -563,11 +555,7 @@ impl Debug for SpiError {
 impl DmaReader<u8> for Spi {
     #[inline]
     fn rx_req(&self) -> Option<u8> {
-        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() {
-            0x11
-        } else {
-            0x13
-        })
+        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() { 0x11 } else { 0x13 })
     }
     #[inline(always)]
     fn rx_info(&self) -> (u32, u32) {
@@ -581,11 +569,7 @@ impl DmaReader<u8> for Spi {
 impl DmaReader<u16> for Spi {
     #[inline]
     fn rx_req(&self) -> Option<u8> {
-        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() {
-            0x11
-        } else {
-            0x13
-        })
+        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() { 0x11 } else { 0x13 })
     }
     #[inline(always)]
     fn rx_info(&self) -> (u32, u32) {
@@ -600,11 +584,7 @@ impl DmaReader<u16> for Spi {
 impl DmaWriter<u8> for Spi {
     #[inline]
     fn tx_req(&self) -> Option<u8> {
-        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() {
-            0x10
-        } else {
-            0x12
-        })
+        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() { 0x10 } else { 0x12 })
     }
     #[inline]
     fn tx_info(&self) -> (u32, u32) {
@@ -618,11 +598,7 @@ impl DmaWriter<u8> for Spi {
 impl DmaWriter<u16> for Spi {
     #[inline]
     fn tx_req(&self) -> Option<u8> {
-        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() {
-            0x10
-        } else {
-            0x12
-        })
+        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() { 0x10 } else { 0x12 })
     }
     #[inline]
     fn tx_info(&self) -> (u32, u32) {

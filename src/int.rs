@@ -27,7 +27,7 @@ use core::clone::Clone;
 use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use core::convert::{From, Into};
 use core::marker::Copy;
-use core::mem::{size_of, MaybeUninit};
+use core::mem::{MaybeUninit, size_of};
 use core::ops::{Index, IndexMut};
 use core::option::Option;
 use core::ptr;
@@ -427,11 +427,7 @@ impl<E: InterruptExtension> InterruptHandler<E> {
         let mut i = [const { Func { ptr: 0usize } }; 48];
         unsafe {
             ptr::copy_nonoverlapping(
-                if default {
-                    ADDR_BASE as *mut usize
-                } else {
-                    PPB::steal().vtor().read().bits() as *mut usize
-                },
+                if default { ADDR_BASE as *mut usize } else { PPB::steal().vtor().read().bits() as *mut usize },
                 i.as_mut_ptr() as *mut usize,
                 48,
             );

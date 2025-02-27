@@ -24,10 +24,10 @@ extern crate core;
 use core::convert::{From, Into};
 use core::ops::{Deref, DerefMut};
 
+use crate::Pico;
 use crate::pin::gpio::Output;
 use crate::pin::pwm::PwmPin;
 use crate::pin::{Pin, PinID};
-use crate::Pico;
 
 pub struct Led(Pin<Output>);
 pub struct LedPwm(PwmPin<Output>);

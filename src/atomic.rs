@@ -28,7 +28,7 @@ use core::marker::{PhantomData, Send, Sync};
 use core::mem::{drop, forget};
 use core::ops::{Drop, FnOnce};
 use core::option::Option::Some;
-use core::sync::atomic::{compiler_fence, AtomicU8, Ordering};
+use core::sync::atomic::{AtomicU8, Ordering, compiler_fence};
 
 use cortex_m::interrupt::{disable, enable};
 use cortex_m::register::primask::read;

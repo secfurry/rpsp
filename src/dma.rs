@@ -26,12 +26,12 @@ use core::cmp;
 use core::marker::{Copy, PhantomData};
 use core::mem::size_of;
 use core::option::Option;
-use core::sync::atomic::{compiler_fence, Ordering};
+use core::sync::atomic::{Ordering, compiler_fence};
 
 use crate::asm::{dsb, nop};
 use crate::dma::mode::{BiDirection, Double, DoubleUp, Single};
-use crate::pac::dma::CH;
 use crate::pac::DMA;
+use crate::pac::dma::CH;
 
 #[repr(u8)]
 pub enum Dma {
@@ -266,19 +266,11 @@ impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>> DmaStream<Double<T, R, W>> {
     }
     #[inline]
     pub fn irq0_state(&self) -> bool {
-        if self.0.first {
-            self.0.ch1.irq0_state()
-        } else {
-            self.0.ch2.irq0_state()
-        }
+        if self.0.first { self.0.ch1.irq0_state() } else { self.0.ch2.irq0_state() }
     }
     #[inline]
     pub fn irq1_state(&self) -> bool {
-        if self.0.first {
-            self.0.ch1.irq1_state()
-        } else {
-            self.0.ch2.irq1_state()
-        }
+        if self.0.first { self.0.ch1.irq1_state() } else { self.0.ch2.irq1_state() }
     }
     pub fn read_next<S: DmaReader<T>>(self, next: S) -> DmaStream<DoubleUp<T, R, W, S>> {
         dsb();
@@ -322,19 +314,11 @@ impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>, S> DmaStream<DoubleUp<T, R, W
     }
     #[inline]
     pub fn irq0_state(&self) -> bool {
-        if self.0.ch.first {
-            self.0.ch.ch1.irq0_state()
-        } else {
-            self.0.ch.ch2.irq0_state()
-        }
+        if self.0.ch.first { self.0.ch.ch1.irq0_state() } else { self.0.ch.ch2.irq0_state() }
     }
     #[inline]
     pub fn irq1_state(&self) -> bool {
-        if self.0.ch.first {
-            self.0.ch.ch1.irq1_state()
-        } else {
-            self.0.ch.ch2.irq1_state()
-        }
+        if self.0.ch.first { self.0.ch.ch1.irq1_state() } else { self.0.ch.ch2.irq1_state() }
     }
 }
 impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>, S: DmaReader<T>> DmaStream<DoubleUp<T, R, W, S>> {

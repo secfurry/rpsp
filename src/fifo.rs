@@ -60,11 +60,7 @@ impl Fifo {
     }
     #[inline]
     pub fn read(&mut self) -> Option<u32> {
-        if self.0.fifo_st().read().vld().bit_is_set() {
-            Some(self.0.fifo_rd().read().bits())
-        } else {
-            None
-        }
+        if self.0.fifo_st().read().vld().bit_is_set() { Some(self.0.fifo_rd().read().bits()) } else { None }
     }
     pub fn write_block(&mut self, v: u32) {
         while self.0.fifo_st().read().rdy().bit_is_clear() {

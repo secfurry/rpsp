@@ -75,11 +75,7 @@ impl<const N: u8> Spinlock<N> {
     }
     pub fn try_claim() -> Option<Spinlock<N>> {
         let p = unsafe { SIO::steal() };
-        if p.spinlock(N as usize).read().bits() > 0 {
-            Some(Spinlock(PhantomData))
-        } else {
-            None
-        }
+        if p.spinlock(N as usize).read().bits() > 0 { Some(Spinlock(PhantomData)) } else { None }
     }
 
     #[inline]

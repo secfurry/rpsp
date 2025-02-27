@@ -24,11 +24,11 @@ extern crate core;
 
 use core::result::Result::{self, Err, Ok};
 
+use crate::Pico;
 use crate::cyw::device::Device;
 use crate::pin::{PinDirection, PinID, PinState};
 use crate::pio::state::Stopped;
 use crate::pio::{Config, Pio, PioID, Program, Shift, Slot, State};
-use crate::Pico;
 
 mod data;
 mod device;

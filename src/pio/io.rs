@@ -29,8 +29,8 @@ use core::result::Result::{self, Err, Ok};
 
 use crate::asm::nop;
 use crate::dma::{DmaReader, DmaWord, DmaWriter};
-use crate::pac::pio0::{RegisterBlock, RXF, TXF};
 use crate::pac::PIO0;
+use crate::pac::pio0::{RXF, RegisterBlock, TXF};
 use crate::pio::{Machine, PioError, PioStateOccupied, Slot};
 use crate::write_reg;
 
@@ -168,11 +168,7 @@ impl<T: PioIO> Rx<T> {
     }
     #[inline]
     pub fn try_read_raw(&mut self) -> Option<u32> {
-        if self.is_empty() {
-            None
-        } else {
-            Some(unsafe { read_volatile(self.ptr().as_ptr()) })
-        }
+        if self.is_empty() { None } else { Some(unsafe { read_volatile(self.ptr().as_ptr()) }) }
     }
     #[inline]
     pub fn set_non_empty_irq(&self, i: Request, en: bool) {

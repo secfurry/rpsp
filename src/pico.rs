@@ -22,10 +22,10 @@
 extern crate core;
 
 use core::mem::zeroed;
-use core::ptr::{write_volatile, NonNull};
+use core::ptr::{NonNull, write_volatile};
 use core::result::Result;
 
-use crate::atomic::{with, Mutex};
+use crate::atomic::{Mutex, with};
 use crate::clock::{Clock, RtcClock, Timer};
 use crate::pin::gpio::Output;
 use crate::pin::pwm::PwmPin;

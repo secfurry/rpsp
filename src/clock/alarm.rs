@@ -29,7 +29,7 @@ use cortex_m::interrupt::free;
 
 use crate::int::Acknowledge;
 use crate::pac::TIMER;
-use crate::{write_reg, Pico};
+use crate::{Pico, write_reg};
 
 #[repr(u8)]
 pub enum AlarmID {

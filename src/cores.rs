@@ -25,14 +25,14 @@ use core::cell::UnsafeCell;
 use core::clone::Clone;
 use core::fmt::{self, Debug, Formatter};
 use core::marker::{Copy, Sync};
-use core::mem::{drop, zeroed, ManuallyDrop};
+use core::mem::{ManuallyDrop, drop, zeroed};
 use core::ops::FnOnce;
 use core::result::Result::{self, Err, Ok};
-use core::sync::atomic::{compiler_fence, Ordering};
+use core::sync::atomic::{Ordering, compiler_fence};
 use core::{matches, unreachable};
 
 use crate::asm::{nop, sev, udf};
-use crate::atomic::{with, Mutex};
+use crate::atomic::{Mutex, with};
 use crate::fifo::Fifo;
 use crate::pac::{MPU, PPB, PSM, RESETS, SIO, SYST};
 use crate::static_instance;

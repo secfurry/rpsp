@@ -28,13 +28,13 @@ use core::fmt::Write;
 use core::result::Result::{self, Err, Ok};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 
+use crate::Pico;
 use crate::clock::Timer;
 use crate::cyw::CywError;
 use crate::pin::gpio::Output;
 use crate::pin::{Pin, PinDirection, PinID, PinState};
 use crate::pio::state::{Running, Stopped};
 use crate::pio::{Config, Machine, Pio, PioID, Program, Rx, Shift, Slot, State, Tx};
-use crate::Pico;
 
 pub struct Device {
     t:      Timer,
