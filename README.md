@@ -38,7 +38,7 @@ for each line, but I'll make some proper documentation soon.
 ## Note
 
 You'll need to make sure you have the `flip-link` linker installed before compiling.
-To do this, use the command `cargo install cargo-expand` to install it.
+To do this, use the command `cargo install flip-link` to install it.
 
 ### Additional Cargo Configuration
 
