@@ -276,7 +276,7 @@ def _make_spi(pins):
             if "SPI0_CS" in i.roles:
                 d.write(f"{_in(2)}(SpiID::Spi0, Some(PinID::Pin{i.id})) => (),\n")
             if "SPI1_CS" in i.roles:
-                d.write(f"{_in(2)}(SpiID::Spi0, Some(PinID::Pin{i.id})) => (),\n")
+                d.write(f"{_in(2)}(SpiID::Spi1, Some(PinID::Pin{i.id})) => (),\n")
         a.write(_in(2))
         b.write(_in(2))
         c.write(_in(2))
