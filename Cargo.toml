@@ -29,7 +29,7 @@ rp2040-pac          = { version = "0.6.0", default-features = false, features = 
 rp2040-hal-macros   = { version = "0.1.0", default-features = false }
 
 [features]
-default             = [ "pico" ]
+default             = []
 debug               = []
 cyw                 = [ "pico" ]
 pico                = []
