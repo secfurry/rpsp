@@ -21,6 +21,7 @@
 
 extern crate core;
 
+use core::cell::UnsafeCell;
 use core::clone::Clone;
 use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use core::convert::{From, TryFrom};
@@ -100,7 +101,7 @@ pub enum PinInterrupt {
 
 pub struct Pin<F: PinIO> {
     i:  PinID,
-    _p: PhantomData<F>,
+    _p: PhantomData<UnsafeCell<F>>,
 }
 pub struct PinInvalidError;
 

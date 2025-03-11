@@ -39,7 +39,6 @@ use crate::pac::SIO;
 
 static SINGLETON: AtomicU8 = AtomicU8::new(0);
 
-pub struct Lock(u8);
 pub struct Mutex<T> {
     v: UnsafeCell<T>,
 }
@@ -48,6 +47,7 @@ pub struct Section<'a> {
     _s: PhantomData<*mut ()>,
 }
 
+struct Lock(u8);
 struct Guard(Lock);
 
 impl Lock {

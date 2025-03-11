@@ -24,6 +24,7 @@ extern crate core;
 use core::convert::TryFrom;
 use core::default::Default;
 use core::fmt::{self, Debug, Formatter, Write};
+use core::marker::Send;
 use core::option::Option::{self, None, Some};
 use core::ptr::NonNull;
 use core::result::Result::{self, Err, Ok};
@@ -389,28 +390,6 @@ impl TryFrom<(PinID, PinID, PinID, PinID)> for UartDev {
     }
 }
 
-#[cfg(feature = "debug")]
-impl Debug for UartError {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            UartError::WouldBlock => f.write_str("WouldBlock"),
-            UartError::InvalidPins => f.write_str("InvalidPins"),
-            UartError::InvalidBaudRate => f.write_str("InvalidBaudRate"),
-            UartError::ReadBreak => f.write_str("ReadBreak"),
-            UartError::ReadOverrun => f.write_str("ReadOverrun"),
-            UartError::ReadInvalid => f.write_str("ReadInvalid"),
-        }
-    }
-}
-#[cfg(not(feature = "debug"))]
-impl Debug for UartError {
-    #[inline(always)]
-    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
-        Ok(())
-    }
-}
-
 impl DmaReader<u8> for Uart {
     #[inline]
     fn rx_req(&self) -> Option<u8> {
@@ -437,6 +416,30 @@ impl DmaWriter<u8> for Uart {
     #[inline(always)]
     fn tx_incremented(&self) -> bool {
         false
+    }
+}
+
+unsafe impl Send for Uart {}
+
+#[cfg(feature = "debug")]
+impl Debug for UartError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            UartError::WouldBlock => f.write_str("WouldBlock"),
+            UartError::InvalidPins => f.write_str("InvalidPins"),
+            UartError::InvalidBaudRate => f.write_str("InvalidBaudRate"),
+            UartError::ReadBreak => f.write_str("ReadBreak"),
+            UartError::ReadOverrun => f.write_str("ReadOverrun"),
+            UartError::ReadInvalid => f.write_str("ReadInvalid"),
+        }
+    }
+}
+#[cfg(not(feature = "debug"))]
+impl Debug for UartError {
+    #[inline(always)]
+    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
+        Ok(())
     }
 }
 

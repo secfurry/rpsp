@@ -21,6 +21,7 @@
 
 extern crate core;
 
+use core::cell::UnsafeCell;
 use core::clone::Clone;
 use core::convert::{From, Into};
 use core::marker::{Copy, PhantomData};
@@ -47,13 +48,17 @@ pub enum AdcChannel {
     Chan4, // Chan4 is the Temperature Sensor
 }
 
+pub struct AdcPin {
+    i:  AdcChannel,
+    _p: PhantomData<UnsafeCell<()>>,
+}
 pub struct AdcFifo<R> {
     d:  ADC,
     _p: PhantomData<R>,
 }
-pub struct AdcTempSensor;
 pub struct AdcSelection(u8);
-pub struct AdcPin(AdcChannel);
+pub struct AdcTempSensor(PhantomData<UnsafeCell<()>>);
+
 pub struct AdcFifoBuilder<R = u16> {
     d:  ADC,
     _p: PhantomData<R>,
@@ -70,7 +75,7 @@ impl AdcPin {
         unsafe { ADC::steal() }
             .cs()
             .modify(|_, r| r.ts_en().set_bit().en().set_bit());
-        AdcTempSensor
+        AdcTempSensor(PhantomData)
     }
     pub fn new(p: Pin<Input>) -> Result<AdcPin, PinInvalidError> {
         prepare_adc();
@@ -89,7 +94,7 @@ impl AdcPin {
             .modify(|_, r| r.oeover().disable());
         p.i.ctrl().modify(|_, r| r.ie().set_bit());
         unsafe { ADC::steal() }.cs().modify(|_, r| r.en().set_bit());
-        Ok(AdcPin(i))
+        Ok(AdcPin { i, _p: PhantomData })
     }
 
     #[inline]
@@ -119,7 +124,7 @@ impl AdcPin {
         self.wait_ready();
         unsafe { ADC::steal() }
             .cs()
-            .modify(|_, r| unsafe { r.ainsel().bits(self.0 as u8).start_once().set_bit() });
+            .modify(|_, r| unsafe { r.ainsel().bits(self.i as u8).start_once().set_bit() });
         self.wait_ready();
         self.read()
     }
@@ -136,7 +141,7 @@ impl AdcPin {
         let d = unsafe { ADC::steal() };
         if en {
             d.cs()
-                .modify(|_, r| unsafe { r.ainsel().bits(self.0 as u8).start_many().set_bit() });
+                .modify(|_, r| unsafe { r.ainsel().bits(self.i as u8).start_many().set_bit() });
         } else {
             d.cs().modify(|_, r| r.start_many().clear_bit());
         }
@@ -308,7 +313,7 @@ impl<R> AdcFifoBuilder<R> {
     }
     #[inline]
     pub fn channel(self, pin: &AdcPin) -> AdcFifoBuilder<R> {
-        self.d.cs().modify(|_, r| unsafe { r.ainsel().bits(pin.0 as u8) });
+        self.d.cs().modify(|_, r| unsafe { r.ainsel().bits(pin.i as u8) });
         self
     }
     #[inline]
@@ -322,7 +327,7 @@ impl<R> AdcFifoBuilder<R> {
 impl AdcSelector for AdcPin {
     #[inline(always)]
     fn channel(&self) -> AdcChannel {
-        self.0
+        self.i
     }
 }
 impl AdcSelector for AdcTempSensor {

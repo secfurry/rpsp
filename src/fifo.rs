@@ -21,60 +21,67 @@
 
 extern crate core;
 
+use core::marker::PhantomData;
 use core::option::Option::{self, None, Some};
 
 use crate::asm::{nop, sev, wfe};
 use crate::pac::SIO;
 
-pub struct Fifo(SIO);
+pub struct Fifo {
+    s:  SIO,
+    _p: PhantomData<*const ()>,
+}
 
 impl Fifo {
     #[inline(always)]
     pub fn get() -> Fifo {
-        Fifo(unsafe { SIO::steal() })
+        Fifo {
+            s:  unsafe { SIO::steal() },
+            _p: PhantomData,
+        }
     }
 
     #[inline]
     pub fn drain(&mut self) {
-        while self.0.fifo_st().read().vld().bit_is_set() {
-            let _ = self.0.fifo_rd().read().bits();
+        while self.s.fifo_st().read().vld().bit_is_set() {
+            let _ = self.s.fifo_rd().read().bits();
         }
     }
     #[inline]
     pub fn status(&mut self) -> u32 {
-        self.0.fifo_st().read().bits()
+        self.s.fifo_st().read().bits()
     }
     pub fn read_block(&mut self) -> u32 {
-        while self.0.fifo_st().read().vld().bit_is_clear() {
+        while self.s.fifo_st().read().vld().bit_is_clear() {
             wfe();
         }
-        self.0.fifo_rd().read().bits()
+        self.s.fifo_rd().read().bits()
     }
     #[inline]
     pub fn is_read_ready(&self) -> bool {
-        self.0.fifo_st().read().vld().bit_is_set()
+        self.s.fifo_st().read().vld().bit_is_set()
     }
     #[inline]
     pub fn is_write_ready(&self) -> bool {
-        self.0.fifo_st().read().rdy().bit_is_set()
+        self.s.fifo_st().read().rdy().bit_is_set()
     }
     #[inline]
     pub fn read(&mut self) -> Option<u32> {
-        if self.0.fifo_st().read().vld().bit_is_set() { Some(self.0.fifo_rd().read().bits()) } else { None }
+        if self.s.fifo_st().read().vld().bit_is_set() { Some(self.s.fifo_rd().read().bits()) } else { None }
     }
     pub fn write_block(&mut self, v: u32) {
-        while self.0.fifo_st().read().rdy().bit_is_clear() {
+        while self.s.fifo_st().read().rdy().bit_is_clear() {
             nop();
         }
-        self.0.fifo_wr().write(|r| unsafe { r.bits(v) });
+        self.s.fifo_wr().write(|r| unsafe { r.bits(v) });
         sev()
     }
     #[inline]
     pub fn write(&mut self, v: u32) -> bool {
-        if self.0.fifo_st().read().rdy().bit_is_clear() {
+        if self.s.fifo_st().read().rdy().bit_is_clear() {
             return false;
         }
-        self.0.fifo_wr().write(|r| unsafe { r.bits(v) });
+        self.s.fifo_wr().write(|r| unsafe { r.bits(v) });
         sev();
         true
     }

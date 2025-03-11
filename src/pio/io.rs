@@ -22,7 +22,7 @@
 extern crate core;
 
 use core::clone::Clone;
-use core::marker::{Copy, PhantomData};
+use core::marker::{Copy, PhantomData, Send};
 use core::option::Option::{self, None, Some};
 use core::ptr::{read_volatile, write_volatile};
 use core::result::Result::{self, Err, Ok};
@@ -342,3 +342,6 @@ impl Clone for Request {
         *self
     }
 }
+
+unsafe impl<T: PioIO> Send for Rx<T> {}
+unsafe impl<T: PioIO> Send for Tx<T> {}

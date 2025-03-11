@@ -25,7 +25,7 @@ use core::convert::{From, TryFrom};
 use core::default::Default;
 use core::fmt::{self, Debug, Formatter};
 use core::iter::Iterator;
-use core::marker::PhantomData;
+use core::marker::{PhantomData, Send};
 use core::ops::{Deref, DerefMut};
 use core::option::Option::{self, None, Some};
 use core::ptr::NonNull;
@@ -533,25 +533,6 @@ impl<'a> From<&'a mut Spi> for SpiBus<'a> {
     }
 }
 
-#[cfg(feature = "debug")]
-impl Debug for SpiError {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            SpiError::WouldBlock => f.write_str("WouldBlock"),
-            SpiError::InvalidPins => f.write_str("InvalidPins"),
-            SpiError::InvalidFrequency => f.write_str("InvalidFrequency"),
-        }
-    }
-}
-#[cfg(not(feature = "debug"))]
-impl Debug for SpiError {
-    #[inline(always)]
-    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
-        Ok(())
-    }
-}
-
 impl DmaReader<u8> for Spi {
     #[inline]
     fn rx_req(&self) -> Option<u8> {
@@ -607,5 +588,26 @@ impl DmaWriter<u16> for Spi {
     #[inline(always)]
     fn tx_incremented(&self) -> bool {
         false
+    }
+}
+
+unsafe impl Send for Spi {}
+
+#[cfg(feature = "debug")]
+impl Debug for SpiError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            SpiError::WouldBlock => f.write_str("WouldBlock"),
+            SpiError::InvalidPins => f.write_str("InvalidPins"),
+            SpiError::InvalidFrequency => f.write_str("InvalidFrequency"),
+        }
+    }
+}
+#[cfg(not(feature = "debug"))]
+impl Debug for SpiError {
+    #[inline(always)]
+    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
+        Ok(())
     }
 }

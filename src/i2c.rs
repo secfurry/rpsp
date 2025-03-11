@@ -25,7 +25,7 @@ use core::clone::Clone;
 use core::convert::From;
 use core::fmt::{self, Debug, Formatter};
 use core::iter::Iterator;
-use core::marker::PhantomData;
+use core::marker::{PhantomData, Send};
 use core::ops::{Deref, DerefMut};
 use core::option::Option::{self, None, Some};
 use core::ptr::NonNull;
@@ -650,6 +650,8 @@ impl From<u16> for I2cAddress {
         I2cAddress::new_10bit(v)
     }
 }
+
+unsafe impl<M: I2cMode> Send for I2c<M> {}
 
 #[cfg(feature = "debug")]
 impl Debug for I2cError {

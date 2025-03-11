@@ -26,7 +26,7 @@ use core::clone::Clone;
 use core::cmp;
 use core::fmt::Debug;
 use core::iter::Iterator;
-use core::marker::{Copy, PhantomData};
+use core::marker::{Copy, PhantomData, Send};
 use core::ops::{Deref, DerefMut, Drop, FnOnce};
 use core::option::Option::{self, None, Some};
 use core::ptr::{read_volatile, write_volatile};
@@ -648,6 +648,9 @@ impl PioStateDone for Stopped {}
 
 impl PioStateOccupied for Running {}
 impl PioStateOccupied for Stopped {}
+
+unsafe impl<S: PioState> Send for Machine<S> {}
+unsafe impl<'a, S: PioState> Send for State<'a, S> {}
 
 #[inline]
 fn transform(start: u8, x: u16) -> Option<u16> {

@@ -26,7 +26,7 @@ use core::cell::UnsafeCell;
 use core::clone::Clone;
 use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use core::convert::{From, Into};
-use core::marker::Copy;
+use core::marker::{Copy, PhantomData};
 use core::mem::{MaybeUninit, size_of};
 use core::ops::{Index, IndexMut};
 use core::option::Option;
@@ -76,9 +76,9 @@ pub enum Interrupt {
     Sw5     = 31,
 }
 
-pub struct Standard;
 pub struct Ack<'a>([Entry<'a>; 32]);
 pub struct Custom<'a>([Call<'a>; 32]);
+pub struct Standard(PhantomData<*const ()>);
 pub struct Object<'a>(MaybeUninit<&'a mut dyn Interrupted>);
 #[repr(transparent)]
 pub struct InterruptHandler<E: InterruptExtension>(UnsafeCell<Handler<E>>);
@@ -222,7 +222,7 @@ impl InterruptHandler<Standard> {
     pub fn new() -> InterruptHandler<Standard> {
         InterruptHandler(UnsafeCell::new(Handler {
             ver:  Extension::Standard,
-            ext:  Standard,
+            ext:  Standard(PhantomData),
             ints: Self::interrupt_table(false),
         }))
     }
@@ -274,7 +274,7 @@ impl<'a> InterruptHandler<Ack<'a>> {
     pub fn to_standard(self) -> InterruptHandler<Standard> {
         InterruptHandler(UnsafeCell::new(Handler {
             ver:  Extension::Standard,
-            ext:  Standard,
+            ext:  Standard(PhantomData),
             ints: self.0.into_inner().ints,
         }))
     }
@@ -316,7 +316,7 @@ impl<'a> InterruptHandler<Custom<'a>> {
     pub fn to_standard(self) -> InterruptHandler<Standard> {
         InterruptHandler(UnsafeCell::new(Handler {
             ver:  Extension::Standard,
-            ext:  Standard,
+            ext:  Standard(PhantomData),
             ints: self.0.into_inner().ints,
         }))
     }
@@ -380,7 +380,7 @@ impl<'a> InterruptHandler<Object<'a>> {
     pub fn to_standard(self) -> InterruptHandler<Standard> {
         InterruptHandler(UnsafeCell::new(Handler {
             ver:  Extension::Standard,
-            ext:  Standard,
+            ext:  Standard(PhantomData),
             ints: self.0.into_inner().ints,
         }))
     }
