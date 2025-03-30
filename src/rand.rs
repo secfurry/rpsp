@@ -26,7 +26,7 @@ use core::clone::Clone;
 use core::default::Default;
 use core::ops::{Deref, DerefMut};
 
-use crate::Pico;
+use crate::Board;
 
 pub struct Rand(u32);
 pub struct RandMut(UnsafeCell<Rand>);
@@ -43,12 +43,12 @@ impl Rand {
 
     #[inline(always)]
     pub fn new() -> Rand {
-        Rand(Pico::get().system_clock().seed())
+        Rand(Board::get().system_clock().seed())
     }
 
     #[inline(always)]
     pub fn reseed(&mut self) {
-        self.0 = Pico::get().system_clock().seed()
+        self.0 = Board::get().system_clock().seed()
     }
     #[inline]
     pub fn rand_u32(&mut self) -> u32 {

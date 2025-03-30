@@ -24,7 +24,7 @@ extern crate core;
 use core::convert::{From, Into};
 use core::ops::{Deref, DerefMut};
 
-use crate::Pico;
+use crate::Board;
 use crate::pin::gpio::Output;
 use crate::pin::pwm::PwmPin;
 use crate::pin::{Pin, PinID};
@@ -34,7 +34,7 @@ pub struct LedPwm(PwmPin<Output>);
 
 impl Led {
     #[inline(always)]
-    pub fn get(p: &Pico, i: PinID) -> Led {
+    pub fn get(p: &Board, i: PinID) -> Led {
         Pin::get(p, i).into()
     }
 
@@ -49,7 +49,7 @@ impl Led {
 }
 impl LedPwm {
     #[inline(always)]
-    pub fn get(p: &Pico, i: PinID) -> LedPwm {
+    pub fn get(p: &Board, i: PinID) -> LedPwm {
         Pin::get(p, i).into_pwm().into()
     }
 

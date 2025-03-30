@@ -31,7 +31,7 @@ use core::option::Option::{self, None, Some};
 use core::ptr::NonNull;
 use core::result::Result::{self, Err, Ok};
 
-use crate::Pico;
+use crate::Board;
 use crate::asm::nop;
 use crate::i2c::mode::{Controller, Peripheral, State};
 use crate::pac::i2c0::RegisterBlock;
@@ -104,7 +104,7 @@ impl I2cAddress {
 }
 impl I2c<Peripheral> {
     #[inline(always)]
-    pub fn new(p: &Pico, sda: PinID, scl: PinID, addr: I2cAddress) -> Result<I2c<Peripheral>, I2cError> {
+    pub fn new(p: &Board, sda: PinID, scl: PinID, addr: I2cAddress) -> Result<I2c<Peripheral>, I2cError> {
         I2cPeripheral::new_peripheral(p, sda, scl, addr)
     }
 
@@ -193,7 +193,7 @@ impl I2c<Controller> {
     pub const DEFAULT_FREQ: u32 = 400_000u32;
 
     #[inline(always)]
-    pub fn new(p: &Pico, sda: PinID, scl: PinID, freq: u32) -> Result<I2c<Controller>, I2cError> {
+    pub fn new(p: &Board, sda: PinID, scl: PinID, freq: u32) -> Result<I2c<Controller>, I2cError> {
         I2cController::new_controller(p, sda, scl, freq)
     }
 
@@ -375,7 +375,7 @@ impl I2c<Controller> {
     }
 }
 impl<M: I2cMode> I2c<M> {
-    pub fn new_controller(p: &Pico, sda: PinID, scl: PinID, freq: u32) -> Result<I2c<Controller>, I2cError> {
+    pub fn new_controller(p: &Board, sda: PinID, scl: PinID, freq: u32) -> Result<I2c<Controller>, I2cError> {
         if freq > 1_000_000 {
             return Err(I2cError::InvalidFrequency);
         }
@@ -453,7 +453,7 @@ impl<M: I2cMode> I2c<M> {
             mode: Controller,
         })
     }
-    pub fn new_peripheral(_p: &Pico, sda: PinID, scl: PinID, addr: I2cAddress) -> Result<I2c<Peripheral>, I2cError> {
+    pub fn new_peripheral(_p: &Board, sda: PinID, scl: PinID, addr: I2cAddress) -> Result<I2c<Peripheral>, I2cError> {
         if !addr.is_valid() {
             return Err(I2cError::InvalidAddress);
         }

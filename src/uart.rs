@@ -30,7 +30,7 @@ use core::ptr::NonNull;
 use core::result::Result::{self, Err, Ok};
 use core::unreachable;
 
-use crate::Pico;
+use crate::Board;
 use crate::asm::nop;
 use crate::dma::{DmaReader, DmaWriter};
 use crate::pac::uart0::RegisterBlock;
@@ -86,7 +86,7 @@ pub struct UartConfig {
 }
 
 impl Uart {
-    pub fn new(p: &Pico, baudrate: u32, cfg: UartConfig, d: UartDev) -> Result<Uart, UartError> {
+    pub fn new(p: &Board, baudrate: u32, cfg: UartConfig, d: UartDev) -> Result<Uart, UartError> {
         let (i, f) = calc_dvs(baudrate, p.system_freq())?;
         let v = d.device().ok_or(UartError::InvalidPins)?;
         unsafe {

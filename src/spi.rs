@@ -32,7 +32,7 @@ use core::ptr::NonNull;
 use core::result::Result::{self, Err, Ok};
 use core::{cmp, matches};
 
-use crate::Pico;
+use crate::Board;
 use crate::asm::nop;
 use crate::dma::{DmaReader, DmaWriter};
 use crate::pac::spi0::RegisterBlock;
@@ -108,7 +108,7 @@ pub trait SpiByte: SpiIO<u8> {}
 pub trait SpiShort: SpiIO<u16> {}
 
 impl Spi {
-    pub fn new(p: &Pico, baudrate: u32, cfg: SpiConfig, d: SpiDev) -> Result<Spi, SpiError> {
+    pub fn new(p: &Board, baudrate: u32, cfg: SpiConfig, d: SpiDev) -> Result<Spi, SpiError> {
         let (b, mut k) = (p.system_freq(), u8::MAX);
         for i in (2u32..=0xFEu32).step_by(2) {
             if b < ((i + 2) * 0x100u32).saturating_mul(baudrate) {

@@ -455,7 +455,7 @@ def make_code_files(layout_dir, boards_dir):
     d = glob(join(layout_dir, "*.layout"))
     if len(d) == 0:
         raise ValueError(f'no layouts found in "{layout_dir}"')
-    b, c = StringIO(), StringIO()
+    b, c, u = StringIO(), StringIO(), dict()
     try:
         b.write(CODE_LIB)
         for i in d:
@@ -464,6 +464,9 @@ def make_code_files(layout_dir, boards_dir):
                 n, t, p = parse(i)
                 if t == "lib":
                     raise ValueError(f'invalid tag name "{t}" in "{i}"')
+                if t in u:
+                    raise ValueError(f'duplicate tag name "{t}" in "{i}"')
+                t[u] = True
                 with open(join(boards_dir, f"{t}.rs"), "w") as f:
                     f.write(format_device(n, t, p))
                 del p
@@ -486,7 +489,7 @@ def make_code_files(layout_dir, boards_dir):
     finally:
         b.close()
         c.close()
-        del b, c
+        del b, c, u
 
 
 if __name__ == "__main__":

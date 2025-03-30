@@ -37,7 +37,7 @@ use crate::pac::pads_bank0::GPIO;
 use crate::pac::{ADC, IO_BANK0, PADS_BANK0, RESETS, SIO, SYSCFG};
 use crate::pin::gpio::{Input, Output};
 use crate::pin::pwm::{PwmID, PwmPin};
-use crate::{Pico, write_reg};
+use crate::{Board, write_reg};
 
 #[path = "pin/boards/lib.rs"]
 mod boards;
@@ -307,7 +307,7 @@ impl Pin<Input> {
 }
 impl Pin<Output> {
     #[inline]
-    pub fn get(_p: &Pico, i: PinID) -> Pin<Output> {
+    pub fn get(_p: &Board, i: PinID) -> Pin<Output> {
         // NOTE(sf): We require the Board struct to make sure the Pins are
         // initialized first.
         let v: Pin<Output> = Pin {

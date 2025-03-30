@@ -35,8 +35,9 @@ use crate::watchdog::Watchdog;
 
 static_instance!(INSTANCE, Inner, Inner::new());
 
-pub struct Pico(NonNull<Inner>);
+pub struct Board(NonNull<Inner>);
 
+pub type Pico = Board;
 pub type MayFail<T> = Result<!, T>;
 
 struct Inner {
@@ -45,10 +46,10 @@ struct Inner {
     timer: Timer,
 }
 
-impl Pico {
+impl Board {
     #[inline]
-    pub fn get() -> Pico {
-        Pico(with(|x| {
+    pub fn get() -> Board {
+        Board(with(|x| {
             let p = INSTANCE.borrow_mut(x);
             if !p.is_ready() {
                 p.setup();
@@ -128,39 +129,39 @@ impl Inner {
 
 #[inline(always)]
 pub fn ticks() -> u64 {
-    Pico::get().current_tick()
+    Board::get().current_tick()
 }
 #[inline(always)]
 pub fn sleep(ms: u32) {
-    Pico::get().sleep(ms);
+    Board::get().sleep(ms);
 }
 #[inline(always)]
 pub fn watchdog_feed() {
-    Pico::get().watchdog().feed();
+    Board::get().watchdog().feed();
 }
 #[inline(always)]
 pub fn ticks_ms() -> u64 {
-    Pico::get().current_tick() / 1_000
+    Board::get().current_tick() / 1_000
 }
 #[inline(always)]
 pub fn sleep_us(us: u32) {
-    Pico::get().sleep_us(us);
+    Board::get().sleep_us(us);
 }
 #[inline(always)]
 pub fn watchdog_enable_ticks() {
-    Pico::get().watchdog().enable_ticks();
+    Board::get().watchdog().enable_ticks();
 }
 #[inline(always)]
 pub fn watchdog_start(ms: u32) {
-    Pico::get().watchdog().start(ms);
+    Board::get().watchdog().start(ms);
 }
 #[inline(always)]
 pub fn pin(p: PinID) -> Pin<Output> {
-    Pico::get().pin(p)
+    Board::get().pin(p)
 }
 #[inline(always)]
 pub fn pwm(p: PinID) -> PwmPin<Output> {
-    Pico::get().pin(p).into_pwm()
+    Board::get().pin(p).into_pwm()
 }
 
 #[inline]

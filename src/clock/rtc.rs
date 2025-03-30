@@ -36,7 +36,7 @@ pub struct RtcClock {
 }
 
 // RTC does not have the "mut" settings so we can use it's pointer variant
-// from the "Pico" struct.
+// from the "Board" struct.
 impl RtcClock {
     #[inline(always)]
     pub(crate) fn new(rtc: RTC) -> RtcClock {

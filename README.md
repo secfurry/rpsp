@@ -12,7 +12,7 @@ when declaring this crate as a depdency.
 Example for the PiPico
 
 ```text
-rpsp = { version = "0.1.0", features = [ "pico" ] }
+rpsp = { version = "0.2.0", features = [ "pico" ] }
 ```
 
 ### Supported Devices
@@ -23,8 +23,8 @@ The following device pinouts are supported:
 - Tiny2040 (`tiny2040`)
 - Seed Studio 2040 (`xiao2040`)
 
-If your device has no support, you can still use the `pico` deice, but __BE CAREFUL__
-__OF THE PINS USED__.
+If your device has no support, you can still use the `pico` device type, but
+__BE CAREFUL OF THE PINS USED__.
 
 I'm open to more devices, I just don't have examples to use ^_^
 
@@ -33,7 +33,9 @@ If you'd like to contribute, pinouts are generated from layout text files in the
 python script in `boards`. This will write board files into the `src/pin/boards`
 directory and updates the `src/pin/boards/lib.rs` with all the tags and modules.
 The text format is pretty simple, it takes the Pin number and it's capabilities
-for each line, but I'll make some proper documentation soon.
+for each line.
+
+Documentation is listed [here](boards/README.md).
 
 ## Note
 
@@ -100,7 +102,11 @@ debug-assertions = false
 
 ## Usage
 
-To use this library, just import `rpsp::Pico` and call `Pico::get()`. On the first
+_NOTE: The struct `Pico` has been renamed to `Board` to properly reflect the_
+_multi-device usage. However it still carries the alias type `Pico` and may be_
+_used interchangeably._
+
+To use this library, just import `rpsp::Board` and call `Board::get()`. On the first
 call, the device and it's clocks will be initialized and setup fully.
 
 The configuration is automatic and uses the ROSC as the system clock, disables
@@ -140,12 +146,12 @@ these, you'll need to add it in order for it to compile.
 Control Pin output:
 
 ```rust
-use rpsp::Pico
+use rpsp::Board
 use rpsp::pin::PinID;
 
 #[rpsp::entry]
 fn main() -> ! {
-    let p = Pico::get();
+    let p = Board::get();
     let my_pin = p.pin(PinID::Pin5);
     // You could also do..
     // let my_pin = Pin::get(&p, PinID::Pin5);
@@ -164,12 +170,12 @@ fn main() -> ! {
 Read Pin output:
 
 ```rust
-use rpsp::Pico
+use rpsp::Board
 use rpsp::pin::PinID;
 
 #[rpsp::entry]
 fn main() -> ! {
-    let p = Pico::get();
+    let p = Board::get();
     let my_pin = p.pin(PinID::Pin6).into_input();
 
     // Set High
@@ -189,13 +195,13 @@ fn main() -> ! {
 ### UART
 
 ```rust
-use rpsp::Pico
+use rpsp::Board
 use rpsp::pin::PinID;
 use rpsp::uart::{Uart, UartConfig, UartDev};
 
 #[rpsp::entry]
 fn main() -> ! {
-    let p = Pico::get();
+    let p = Board::get();
 
     // DEFAULT_BAUDRATE is 115,200
     let mut u = Uart::new(
@@ -229,11 +235,11 @@ fn main() -> ! {
 ### Time  and Sleep
 
 ```rust
-use rpsp::Pico
+use rpsp::Board
 
 #[rpsp::entry]
 fn main() -> ! {
-    let p = Pico::get();
+    let p = Board::get();
 
     for i in 0..25 {
         p.sleep(5_000); // Wait 5 seconds.
@@ -252,11 +258,11 @@ fn main() -> ! {
 ### Watchdog
 
 ```rust
-use rpsp::Pico
+use rpsp::Board
 
 #[rpsp::entry]
 fn main() -> ! {
-    let p = Pico::get();
+    let p = Board::get();
     let dog = p.watchdog();
 
     dog.start(5_000); // Die if we don't feed the dog every 5 seconds.
@@ -280,6 +286,5 @@ Theres alot of more examples I need to add..
 
 - CYW Driver
   - Networking??
-- Document Board layout format
 
 License for the CYW driver is [here](src/cyw/firmware/LICENSE-permissive-binary-license-1.0.txt)

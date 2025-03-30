@@ -37,7 +37,7 @@ use crate::pac::pio0::{RegisterBlock, SM};
 use crate::pac::{PIO0, PIO1, RESETS};
 use crate::pin::{PinDirection, PinID, PinState};
 use crate::pio::state::{Running, Stopped, Uninit};
-use crate::{Pico, write_reg};
+use crate::{Board, write_reg};
 
 mod config;
 mod group;
@@ -106,7 +106,7 @@ pub trait PioStateDone: PioState {}
 pub trait PioStateOccupied: PioState {}
 
 impl Pio {
-    pub fn get(_p: &Pico, i: PioID) -> Pio {
+    pub fn get(_p: &Board, i: PioID) -> Pio {
         let r = unsafe { RESETS::steal() };
         let v = match i {
             PioID::Pio0 => {

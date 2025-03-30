@@ -28,7 +28,7 @@ use core::fmt::Write;
 use core::result::Result::{self, Err, Ok};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 
-use crate::Pico;
+use crate::Board;
 use crate::clock::Timer;
 use crate::cyw::CywError;
 use crate::pin::gpio::Output;
@@ -50,7 +50,7 @@ pub struct Device {
 
 impl Device {
     #[inline]
-    pub fn new(p: &Pico, offset: u8, sm: State<'_, Stopped>, pwr: PinID, cs: PinID) -> Device {
+    pub fn new(p: &Board, offset: u8, sm: State<'_, Stopped>, pwr: PinID, cs: PinID) -> Device {
         let m = unsafe { sm.start_paused().uncouple() };
         Device {
             offset,

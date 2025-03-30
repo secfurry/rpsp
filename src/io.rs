@@ -27,10 +27,10 @@ use core::result::Result::{self, Err, Ok};
 
 pub enum Error<E> {
     // Generic IO
+    Read,
+    Write,
     Timeout,
     EndOfFile,
-    ReadError,
-    WriteError,
     UnexpectedEof,
 
     // Generic FileSystem
@@ -148,10 +148,10 @@ impl<E: Debug> Debug for Error<E> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            Error::Read => f.write_str("Read"),
+            Error::Write => f.write_str("Write"),
             Error::Timeout => f.write_str("Timeout"),
             Error::EndOfFile => f.write_str("EndOfFile"),
-            Error::ReadError => f.write_str("ReadError"),
-            Error::WriteError => f.write_str("WriteError"),
             Error::UnexpectedEof => f.write_str("UnexpectedEof"),
             Error::NoSpace => f.write_str("NoSpace"),
             Error::NotAFile => f.write_str("NotAFile"),

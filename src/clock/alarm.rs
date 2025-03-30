@@ -29,7 +29,7 @@ use cortex_m::interrupt::free;
 
 use crate::int::Acknowledge;
 use crate::pac::TIMER;
-use crate::{Pico, write_reg};
+use crate::{Board, write_reg};
 
 #[repr(u8)]
 pub enum AlarmID {
@@ -46,7 +46,7 @@ pub struct Alarm {
 
 impl Alarm {
     #[inline]
-    pub fn new(p: &Pico, a: AlarmID) -> Alarm {
+    pub fn new(p: &Board, a: AlarmID) -> Alarm {
         // NOTE(sf): Make sure the Watchdog is ticking.
         p.enable_ticks();
         Alarm {

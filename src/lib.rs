@@ -83,14 +83,14 @@ mod pac {
 mod debug {
     extern crate core;
 
-    use crate::Pico;
+    use crate::Board;
     use crate::pin::PinID;
     use crate::uart::{Uart, UartConfig, UartDev};
 
     #[inline]
     pub fn uart_debug() -> Uart {
         Uart::new(
-            &Pico::get(),
+            &Board::get(),
             UartConfig::DEFAULT_BAUDRATE,
             UartConfig::new(),
             UartDev::new(PinID::Pin0, PinID::Pin1).unwrap(),

@@ -24,7 +24,7 @@ extern crate core;
 
 use core::result::Result::{self, Err, Ok};
 
-use crate::Pico;
+use crate::Board;
 use crate::cyw::device::Device;
 use crate::pin::{PinDirection, PinID, PinState};
 use crate::pio::state::Stopped;
@@ -37,7 +37,7 @@ const FREQ: u32 = 50_000_000u32;
 
 #[derive(Debug)]
 pub enum CywError {
-    CodeError,
+    Code,
     NoBluetooth,
     InitFailure,
     InvalidFrequency,
@@ -48,7 +48,7 @@ pub struct Cyw43 {
 }
 
 impl Cyw43 {
-    pub fn new(p: &Pico) -> Result<Cyw43, CywError> {
+    pub fn new(p: &Board) -> Result<Cyw43, CywError> {
         let m = p.system_freq();
         let (mut f, mut d, mut r) = (1u32, 0u32, 50_000_000u32);
         // Find a nice target frequency around ~50MHz.
@@ -74,7 +74,7 @@ impl Cyw43 {
             0xC000, //  7: irq    nowait 0   side 0
         ]);
         let mut v = Pio::get(p, PioID::Pio0);
-        let i = v.install(&c).map_err(|_| CywError::CodeError)?;
+        let i = v.install(&c).map_err(|_| CywError::Code)?;
         let mut s = Config::new_program(&i)
             .sideset_pin(PinID::Pin29)
             .output_pin(PinID::Pin24)
@@ -92,7 +92,7 @@ impl Cyw43 {
         })
     }
     #[inline(always)]
-    pub fn create(p: &Pico, offset: u8, sm: State<'_, Stopped>, pwr: PinID, cs: PinID) -> Cyw43 {
+    pub fn create(p: &Board, offset: u8, sm: State<'_, Stopped>, pwr: PinID, cs: PinID) -> Cyw43 {
         Cyw43 {
             dev: Device::new(p, offset, sm, pwr, cs),
         }
