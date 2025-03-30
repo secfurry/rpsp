@@ -466,7 +466,7 @@ def make_code_files(layout_dir, boards_dir):
                     raise ValueError(f'invalid tag name "{t}" in "{i}"')
                 if t in u:
                     raise ValueError(f'duplicate tag name "{t}" in "{i}"')
-                t[u] = True
+                u[t] = True
                 with open(join(boards_dir, f"{t}.rs"), "w") as f:
                     f.write(format_device(n, t, p))
                 del p
