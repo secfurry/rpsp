@@ -38,7 +38,7 @@ pub struct RtcClock {
 // RTC does not have the "mut" settings so we can use it's pointer variant
 // from the "Board" struct.
 impl RtcClock {
-    #[inline(always)]
+    #[inline]
     pub(crate) fn new(rtc: RTC) -> RtcClock {
         // RTC was already init-ed so we don't need to do anything.
         RtcClock { rtc }
@@ -48,7 +48,7 @@ impl RtcClock {
     pub fn close(&self) {
         unsafe { RESETS::steal() }.reset().modify(|_, r| r.rtc().set_bit());
     }
-    #[inline(always)]
+    #[inline]
     pub fn alarm_disable(&self) {
         self.wait_enable(false);
     }
@@ -69,7 +69,7 @@ impl RtcClock {
     pub fn set_leap_year_check(&self, en: bool) {
         self.rtc.ctrl().modify(|_, r| r.force_notleapyear().bit(!en));
     }
-    #[inline(always)]
+    #[inline]
     pub fn now(&self) -> Result<Time, RtcError> {
         self.now_inner()
     }
@@ -116,7 +116,7 @@ impl RtcClock {
                 r.month_ena().set_bit().month().bits(v.month as u8);
             }
             if let Some(i) = v.year {
-                r.year_ena().set_bit().year().bits(i);
+                r.year_ena().set_bit().year().bits(i.get());
             }
             r
         });
@@ -138,7 +138,7 @@ impl RtcClock {
         self.wait_enable(true);
         Ok(())
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_time_from(&self, mut v: impl TimeSource) -> Result<(), RtcError> {
         self.set_time(v.now().map_err(|e| e.into())?)
     }
@@ -171,7 +171,7 @@ impl RtcClock {
 impl TimeSource for RtcClock {
     type Error = RtcError;
 
-    #[inline(always)]
+    #[inline]
     fn now(&mut self) -> Result<Time, RtcError> {
         self.now_inner()
     }
@@ -179,13 +179,13 @@ impl TimeSource for RtcClock {
 impl TimeSource for &RtcClock {
     type Error = RtcError;
 
-    #[inline(always)]
+    #[inline]
     fn now(&mut self) -> Result<Time, RtcError> {
         self.now_inner()
     }
 }
 impl Acknowledge for RtcClock {
-    #[inline(always)]
+    #[inline]
     fn ack_interrupt(&mut self) -> bool {
         self.interrupt_clear();
         true

@@ -24,7 +24,7 @@ extern crate core;
 use core::convert::{From, Into};
 use core::fmt::{self, Debug, Formatter};
 use core::marker::Sized;
-use core::num::NonZeroU8;
+use core::num::{NonZeroU8, NonZeroU16};
 use core::option::Option::{self, None, Some};
 use core::result::Result;
 
@@ -50,7 +50,7 @@ pub struct AlarmConfig {
     pub day:     Option<NonZeroU8>,
     pub mins:    Option<u8>,
     pub secs:    Option<u8>,
-    pub year:    Option<u16>,
+    pub year:    Option<NonZeroU16>,
     pub hours:   Option<u8>,
     pub month:   Month,
     pub weekday: Weekday,
@@ -63,7 +63,7 @@ pub trait TimeSource {
 }
 
 impl AlarmConfig {
-    #[inline(always)]
+    #[inline]
     pub const fn new() -> AlarmConfig {
         AlarmConfig {
             day:     None,
@@ -98,7 +98,7 @@ impl AlarmConfig {
     }
     #[inline]
     pub const fn year(mut self, v: u16) -> AlarmConfig {
-        self.year = Some(v);
+        self.year = NonZeroU16::new(v);
         self
     }
     #[inline]
@@ -112,18 +112,18 @@ impl AlarmConfig {
         self
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.day.is_none() && self.mins.is_none() && self.secs.is_none() && self.hours.is_none() && self.weekday.is_none()
     }
-    #[inline(always)]
+    #[inline]
     pub fn is_valid(&self) -> bool {
         self.day.is_none_or(|v| v.get() >= 1 && v.get() <= 31) && self.hours.is_none_or(|v| v <= 23) && self.mins.is_none_or(|v| v <= 59) && self.secs.is_none_or(|v| v <= 59)
     }
 }
 
 impl From<I2cError> for RtcError {
-    #[inline(always)]
+    #[inline]
     fn from(v: I2cError) -> RtcError {
         RtcError::I2C(v)
     }
@@ -132,14 +132,14 @@ impl From<I2cError> for RtcError {
 impl<T: ?Sized + TimeSource> TimeSource for &mut T {
     type Error = T::Error;
 
-    #[inline(always)]
+    #[inline]
     fn now(&mut self) -> Result<Time, Self::Error> {
         T::now(self)
     }
 }
 
-#[cfg(feature = "debug")]
 impl Debug for RtcError {
+    #[cfg(feature = "debug")]
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -149,10 +149,8 @@ impl Debug for RtcError {
             RtcError::I2C(v) => f.debug_tuple("I2C").field(v).finish(),
         }
     }
-}
-#[cfg(not(feature = "debug"))]
-impl Debug for RtcError {
-    #[inline(always)]
+    #[cfg(not(feature = "debug"))]
+    #[inline]
     fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
         Result::Ok(())
     }

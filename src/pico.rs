@@ -29,7 +29,7 @@ use crate::atomic::{Mutex, with};
 use crate::clock::{Clock, RtcClock, Timer};
 use crate::pin::gpio::Output;
 use crate::pin::pwm::PwmPin;
-use crate::pin::{self, Pin, PinID};
+use crate::pin::{Pin, PinID, setup_pins};
 use crate::static_instance;
 use crate::watchdog::Watchdog;
 
@@ -58,39 +58,39 @@ impl Board {
         }))
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn sleep(&self, ms: u32) {
         self.ptr().timer.sleep_ms(ms)
     }
-    #[inline(always)]
+    #[inline]
     pub fn timer(&self) -> &Timer {
         &self.ptr().timer
     }
-    #[inline(always)]
+    #[inline]
     pub fn rtc(&self) -> &RtcClock {
         self.ptr().clk.rtc()
     }
-    #[inline(always)]
+    #[inline]
     pub fn sleep_us(&self, us: u32) {
         self.ptr().timer.sleep_us(us)
     }
-    #[inline(always)]
+    #[inline]
     pub fn system_freq(&self) -> u32 {
         self.ptr().clk.freq()
     }
-    #[inline(always)]
+    #[inline]
     pub fn current_tick(&self) -> u64 {
         self.ptr().timer.current_tick()
     }
-    #[inline(always)]
+    #[inline]
     pub fn watchdog(&self) -> &Watchdog {
         &self.ptr().dog
     }
-    #[inline(always)]
+    #[inline]
     pub fn system_clock(&self) -> &Clock {
         &self.ptr().clk
     }
-    #[inline(always)]
+    #[inline]
     pub fn pin(&self, p: PinID) -> Pin<Output> {
         Pin::get(self, p)
     }
@@ -102,64 +102,63 @@ impl Board {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn ptr(&self) -> &mut Inner {
         unsafe { &mut *self.0.as_ptr() }
     }
 }
 impl Inner {
-    #[inline(always)]
+    #[inline]
     const fn new() -> Inner {
         unsafe { zeroed() }
     }
 
     #[inline]
     fn setup(&mut self) {
-        // Setup pins first.
-        pin::setup_pins();
+        setup_pins(); // Setup pins first.
         self.clk = Clock::new();
         self.timer = Timer::new(&self.clk);
         self.dog = Watchdog::new(self.clk.freq());
     }
-    #[inline(always)]
+    #[inline]
     fn is_ready(&self) -> bool {
         self.clk.freq() > 0
     }
 }
 
-#[inline(always)]
+#[inline]
 pub fn ticks() -> u64 {
     Board::get().current_tick()
 }
-#[inline(always)]
+#[inline]
 pub fn sleep(ms: u32) {
     Board::get().sleep(ms);
 }
-#[inline(always)]
+#[inline]
 pub fn watchdog_feed() {
     Board::get().watchdog().feed();
 }
-#[inline(always)]
+#[inline]
 pub fn ticks_ms() -> u64 {
     Board::get().current_tick() / 1_000
 }
-#[inline(always)]
+#[inline]
 pub fn sleep_us(us: u32) {
     Board::get().sleep_us(us);
 }
-#[inline(always)]
+#[inline]
 pub fn watchdog_enable_ticks() {
     Board::get().watchdog().enable_ticks();
 }
-#[inline(always)]
+#[inline]
 pub fn watchdog_start(ms: u32) {
     Board::get().watchdog().start(ms);
 }
-#[inline(always)]
+#[inline]
 pub fn pin(p: PinID) -> Pin<Output> {
     Board::get().pin(p)
 }
-#[inline(always)]
+#[inline]
 pub fn pwm(p: PinID) -> PwmPin<Output> {
     Board::get().pin(p).into_pwm()
 }

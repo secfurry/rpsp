@@ -30,7 +30,7 @@ use core::marker::{Copy, PhantomData};
 use core::mem::{MaybeUninit, size_of};
 use core::ops::{Index, IndexMut};
 use core::option::Option;
-use core::ptr;
+use core::ptr::copy_nonoverlapping;
 
 use cortex_m::interrupt::free;
 
@@ -99,7 +99,7 @@ pub type CustomHandler<'a> = InterruptHandler<Custom<'a>>;
 pub type ObjectHandler<'a> = InterruptHandler<Object<'a>>;
 
 const ADDR_BASE: u32 = 0x10000100u32;
-const ADDR_OFFSET: u32 = size_of::<usize>() as u32 * 48;
+const ADDR_OFFSET: u32 = size_of::<usize>() as u32 * 0x30;
 
 #[repr(u8)]
 enum Extension {
@@ -128,68 +128,68 @@ union Func {
 }
 
 impl Interrupt {
-    #[inline(always)]
+    #[inline]
     pub fn pend(&self) {
         set_pending(*self, true);
     }
-    #[inline(always)]
+    #[inline]
     pub fn unpend(&self) {
         set_pending(*self, false);
     }
-    #[inline(always)]
+    #[inline]
     pub fn enable(&self) {
         set_interrupt(*self, true);
     }
-    #[inline(always)]
+    #[inline]
     pub fn disable(&self) {
         set_interrupt(*self, false);
     }
-    #[inline(always)]
+    #[inline]
     pub fn set(&self, en: bool) {
         set_interrupt(*self, en);
     }
-    #[inline(always)]
+    #[inline]
     pub fn priority(&self) -> u8 {
         get_priority(*self)
     }
-    #[inline(always)]
+    #[inline]
     pub fn is_enabled(&self) -> bool {
         is_enabled(*self)
     }
-    #[inline(always)]
+    #[inline]
     pub fn is_pending(&self) -> bool {
         is_pending(*self)
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_priority(&self, pri: u8) {
         set_priority(*self, pri);
     }
 
-    #[inline(always)]
+    #[inline]
     fn ipr(&self) -> usize {
-        (*self as usize) / 4
+        ((*self as usize) / 4).min(7)
     }
-    #[inline(always)]
+    #[inline]
     fn pos(&self) -> usize {
-        (*self as usize) / 32
+        ((*self as usize) / 32).min(15)
     }
-    #[inline(always)]
+    #[inline]
     fn value(&self) -> u32 {
-        1 << (*self as u32 % 32)
+        unsafe { 1u32.unchecked_shl((*self as u32).min(31)) }
     }
-    #[inline(always)]
-    fn shift(&self) -> usize {
-        ((*self as usize) % 4) * 8
+    #[inline]
+    fn shift(&self) -> u32 {
+        ((*self as u32) % 4) * 8
     }
 }
 impl<'a> Ack<'a> {
-    #[inline(always)]
+    #[inline]
     const fn new() -> Ack<'a> {
         Ack([const { Entry::new() }; 32])
     }
 }
 impl<'a> Entry<'a> {
-    #[inline(always)]
+    #[inline]
     const fn new() -> Entry<'a> {
         Entry {
             ack:  MaybeUninit::uninit(),
@@ -212,7 +212,7 @@ impl<'a> Entry<'a> {
     }
 }
 impl<'a> Custom<'a> {
-    #[inline(always)]
+    #[inline]
     const fn new() -> Custom<'a> {
         Custom([const { Call(MaybeUninit::uninit()) }; 32])
     }
@@ -356,7 +356,7 @@ impl<'a> InterruptHandler<Object<'a>> {
         }))
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn enable(&mut self, i: Interrupt) {
         free(|_| self.set_inner(i, interrupt_handler))
     }
@@ -410,14 +410,14 @@ impl<E: InterruptExtension> InterruptHandler<E> {
         free(|_| {
             // Disable the interrupt.
             i.disable();
-            let i = 0x10 + (i as usize);
+            let i = (0x10 + (i as usize)).min(31);
             // Read directly from ROM.
             let t = Self::interrupt_table(true);
             // Reset the default value.
-            unsafe { self.ptr().ints[i].ptr = t[i].ptr };
+            unsafe { self.ptr().ints.get_unchecked_mut(i).ptr = t.get_unchecked(i).ptr };
         })
     }
-    #[inline(always)]
+    #[inline]
     pub fn set(&mut self, i: Interrupt, func: extern "C" fn()) {
         free(|_| self.set_inner(i, func))
     }
@@ -426,7 +426,7 @@ impl<E: InterruptExtension> InterruptHandler<E> {
     fn interrupt_table(default: bool) -> [Func; 48] {
         let mut i = [const { Func { ptr: 0usize } }; 48];
         unsafe {
-            ptr::copy_nonoverlapping(
+            copy_nonoverlapping(
                 if default { ADDR_BASE as *mut usize } else { PPB::steal().vtor().read().bits() as *mut usize },
                 i.as_mut_ptr() as *mut usize,
                 48,
@@ -435,27 +435,27 @@ impl<E: InterruptExtension> InterruptHandler<E> {
         i
     }
 
-    #[inline(always)]
+    #[inline]
     fn ptr(&self) -> &mut Handler<E> {
         unsafe { &mut *self.0.get() }
     }
     #[inline]
     fn set_inner(&self, i: Interrupt, func: extern "C" fn()) {
         i.enable();
-        self.ptr().ints[0x10 + (i as usize)].external = func
+        unsafe { self.ptr().ints.get_unchecked_mut((0x10 + (i as usize)).min(31)).external = func };
     }
 }
 
 impl Eq for Interrupt {}
 impl Ord for Interrupt {
-    #[inline(always)]
+    #[inline]
     fn cmp(&self, other: &Interrupt) -> Ordering {
         (&(*self as u8)).cmp(&(*other as u8))
     }
 }
 impl Copy for Interrupt {}
 impl Clone for Interrupt {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Interrupt {
         *self
     }
@@ -500,19 +500,19 @@ impl From<u8> for Interrupt {
     }
 }
 impl From<u16> for Interrupt {
-    #[inline(always)]
+    #[inline]
     fn from(v: u16) -> Interrupt {
         (v as u8).into()
     }
 }
 impl PartialEq for Interrupt {
-    #[inline(always)]
+    #[inline]
     fn eq(&self, other: &Interrupt) -> bool {
-        (*self as u8) == (*other as u8)
+        *self as u8 == *other as u8
     }
 }
 impl PartialOrd for Interrupt {
-    #[inline(always)]
+    #[inline]
     fn partial_cmp(&self, other: &Interrupt) -> Option<Ordering> {
         (&(*self as u8)).partial_cmp(&(*other as u8))
     }
@@ -521,14 +521,14 @@ impl PartialOrd for Interrupt {
 impl InterruptExtension for Ack<'_> {
     #[inline(never)]
     fn call(&mut self, i: Interrupt) {
-        self.0[i as usize].call()
+        unsafe { self.0.get_unchecked_mut((i as usize).min(31)).call() }
     }
 }
 impl InterruptExtension for Standard {}
 impl InterruptExtension for Custom<'_> {
     #[inline(never)]
     fn call(&mut self, i: Interrupt) {
-        unsafe { self.0[i as usize].0.assume_init_mut() }.interrupt(i)
+        unsafe { self.0.get_unchecked_mut((i as usize).min(31)).0.assume_init_mut() }.interrupt(i);
     }
 }
 impl InterruptExtension for Object<'_> {
@@ -541,58 +541,63 @@ impl InterruptExtension for Object<'_> {
 impl<E: InterruptExtension> Index<Interrupt> for Handler<E> {
     type Output = Func;
 
-    #[inline(always)]
+    #[inline]
     fn index(&self, i: Interrupt) -> &Func {
-        &self.ints[i as usize]
+        unsafe { self.ints.get_unchecked((i as usize).min(31)) }
     }
 }
 impl<E: InterruptExtension> IndexMut<Interrupt> for Handler<E> {
-    #[inline(always)]
+    #[inline]
     fn index_mut(&mut self, i: Interrupt) -> &mut Func {
-        &mut self.ints[i as usize]
+        unsafe { self.ints.get_unchecked_mut((i as usize).min(31)) }
     }
 }
 
-#[inline(always)]
+#[inline]
 pub fn wait_for_event() {
     wfe();
 }
-#[inline(always)]
+#[inline]
 pub fn wait_for_interrupt() {
     wfi();
 }
 #[inline]
 pub fn is_enabled(i: Interrupt) -> bool {
     let v = i.value();
-    unsafe { (&*NVIC::PTR).iser[i.pos()].read() & v == v }
+    unsafe { (&*NVIC::PTR).iser.get_unchecked(i.pos()).read() & v == v }
 }
 #[inline]
 pub fn is_pending(i: Interrupt) -> bool {
     let v = i.value();
-    unsafe { (&*NVIC::PTR).ispr[i.pos()].read() & v == v }
+    unsafe { (&*NVIC::PTR).ispr.get_unchecked(i.pos()).read() & v == v }
 }
 #[inline]
 pub fn get_priority(i: Interrupt) -> u8 {
-    unsafe { (((&*NVIC::PTR).ipr[i.ipr()].read() >> i.shift()) & 0xFF) as u8 }
+    unsafe { ((&*NVIC::PTR).ipr.get_unchecked(i.ipr()).read().unchecked_shr(i.shift()) & 0xFF) as u8 }
 }
 #[inline]
 pub fn set_priority(i: Interrupt, pri: u8) {
-    unsafe { (&*NVIC::PTR).ipr[i.ipr()].modify(|r| (r & !(0xFF << (i.shift()))) | ((pri as u32) << i.shift())) }
+    unsafe {
+        (&*NVIC::PTR)
+            .ipr
+            .get_unchecked(i.ipr())
+            .modify(|r| (r & !(0xFFu32.unchecked_shl(i.shift()))) | (pri as u32).unchecked_shl(i.shift()))
+    }
 }
 #[inline]
 pub fn set_pending(i: Interrupt, pend: bool) {
     if pend {
-        unsafe { (&*NVIC::PTR).ispr[i.pos()].write(i.value()) }
+        unsafe { (&*NVIC::PTR).ispr.get_unchecked(i.pos()).write(i.value()) }
     } else {
-        unsafe { (&*NVIC::PTR).icpr[i.pos()].write(i.value()) }
+        unsafe { (&*NVIC::PTR).icpr.get_unchecked(i.pos()).write(i.value()) }
     }
 }
 #[inline]
 pub fn set_interrupt(i: Interrupt, en: bool) {
     if en {
-        unsafe { (&*NVIC::PTR).iser[i.pos()].write(i.value()) }
+        unsafe { (&*NVIC::PTR).iser.get_unchecked(i.pos()).write(i.value()) }
     } else {
-        unsafe { (&*NVIC::PTR).icer[i.pos()].write(i.value()) }
+        unsafe { (&*NVIC::PTR).icer.get_unchecked(i.pos()).write(i.value()) }
     }
 }
 
@@ -603,10 +608,12 @@ extern "C" fn interrupt_handler() {
         r.icsr().read().vectactive().bits().into(),
         r.vtor().read().bits(),
     );
-    match unsafe { &*((p + ADDR_OFFSET) as *const Extension) } {
-        Extension::Ack => unsafe { &mut *(p as *mut Handler<Ack>) }.ext.call(i),
-        Extension::Custom => unsafe { &mut *(p as *mut Handler<Custom>) }.ext.call(i),
-        Extension::Object => unsafe { &mut *(p as *mut Handler<Object>) }.ext.call(i),
-        _ => (),
+    unsafe {
+        match &*((p + ADDR_OFFSET) as *const Extension) {
+            Extension::Ack => (&mut *(p as *mut Handler<Ack>)).ext.call(i),
+            Extension::Custom => (&mut *(p as *mut Handler<Custom>)).ext.call(i),
+            Extension::Object => (&mut *(p as *mut Handler<Object>)).ext.call(i),
+            _ => (),
+        }
     }
 }

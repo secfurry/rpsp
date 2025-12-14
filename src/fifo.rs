@@ -33,7 +33,7 @@ pub struct Fifo {
 }
 
 impl Fifo {
-    #[inline(always)]
+    #[inline]
     pub fn get() -> Fifo {
         Fifo {
             s:  unsafe { SIO::steal() },

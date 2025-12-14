@@ -34,7 +34,7 @@ pub enum PinID {
     Pin29 = 0x1Du8,
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn pins_pwm(pin: &PinID) -> PwmID {
     match pin {
         PinID::Pin0 => PwmID::Pwm0A,

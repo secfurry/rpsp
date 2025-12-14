@@ -20,7 +20,7 @@
 #![no_std]
 #![no_main]
 #![no_implicit_prelude]
-#![feature(never_type)]
+#![feature(never_type, unchecked_shifts)]
 
 extern crate cortex_m;
 extern crate cortex_m_rt;
@@ -62,13 +62,6 @@ pub mod watchdog;
 
 pub use pico::*;
 
-#[macro_export]
-macro_rules! ignore_error {
-    ($expression:expr) => {
-        let _ =  $expression; // IGNORE ERROR
-    };
-}
-
 #[cfg_attr(rustfmt, rustfmt_skip)]
 #[cfg(feature = "debug")]
 pub use self::debug::uart_debug;
@@ -83,19 +76,41 @@ mod pac {
 mod debug {
     extern crate core;
 
+    use core::cell::UnsafeCell;
+    use core::marker::Sync;
+    use core::option::Option::{self, None};
+
     use crate::Board;
     use crate::pin::PinID;
     use crate::uart::{Uart, UartConfig, UartDev};
 
+    static DEBUG: DebugPort = DebugPort(UnsafeCell::new(None));
+
+    struct DebugPort(UnsafeCell<Option<Uart>>);
+
+    impl DebugPort {
+        #[inline]
+        fn new() -> Uart {
+            Uart::new(
+                &Board::get(),
+                UartConfig::DEFAULT_BAUDRATE,
+                UartConfig::new(),
+                UartDev::new(PinID::Pin0, PinID::Pin1).unwrap(),
+            )
+            .unwrap()
+        }
+
+        #[inline]
+        fn port(&self) -> &mut Uart {
+            unsafe { &mut *self.0.get() }.get_or_insert_with(DebugPort::new)
+        }
+    }
+
+    unsafe impl Sync for DebugPort {}
+
     #[inline]
-    pub fn uart_debug() -> Uart {
-        Uart::new(
-            &Board::get(),
-            UartConfig::DEFAULT_BAUDRATE,
-            UartConfig::new(),
-            UartDev::new(PinID::Pin0, PinID::Pin1).unwrap(),
-        )
-        .unwrap()
+    pub fn uart_debug<'a>() -> &'a mut Uart {
+        DEBUG.port()
     }
 
     #[macro_export]

@@ -62,7 +62,7 @@ CODE_LIB = """// AUTOMATICALLY GENERATED: DO NOT EDIT!
 #![cfg_attr(rustfmt, rustfmt_skip)]
 """
 CODE_PWM = """
-#[inline(always)]
+#[inline]
 pub(crate) fn pins_pwm(pin: &PinID) -> PwmID {{
     match pin {{
 {pins}}}

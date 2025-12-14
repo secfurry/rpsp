@@ -23,8 +23,8 @@ extern crate core;
 
 use core::cell::UnsafeCell;
 use core::clone::Clone;
-use core::cmp;
-use core::fmt::Debug;
+use core::cmp::Ord;
+use core::fmt::{self, Debug, Formatter};
 use core::iter::Iterator;
 use core::marker::{Copy, PhantomData, Send};
 use core::ops::{Deref, DerefMut, Drop, FnOnce};
@@ -49,7 +49,7 @@ pub use self::group::*;
 pub use self::int::*;
 pub use self::io::*;
 
-pub const MAX_INSTRUCTIONS: usize = 0x20usize;
+pub const MAX_INSTRUCTIONS: usize = 32usize;
 
 #[repr(u8)]
 pub enum Slot {
@@ -145,29 +145,29 @@ impl Pio {
     pub fn irq_force(&self, v: u8) {
         self.ptr().irq_force().write(|r| unsafe { r.irq_force().bits(v) })
     }
-    #[inline(always)]
+    #[inline]
     pub fn irq0<'a>(&'a self) -> Interrupt<'a> {
         Interrupt::new(self, Request::Irq0)
     }
-    #[inline(always)]
+    #[inline]
     pub fn irq1<'a>(&'a self) -> Interrupt<'a> {
         Interrupt::new(self, Request::Irq1)
     }
-    #[inline(always)]
+    #[inline]
     pub fn irq<'a>(&'a self, i: Request) -> Interrupt<'a> {
         Interrupt::new(self, i)
     }
     #[inline]
     pub fn release<'a, S: PioStateDone>(&mut self, i: State<'a, S>) {
-        unsafe { *self.sm.get() &= 1 << i.m.idx as u8 }
+        unsafe { *self.sm.get() &= 1u8.unchecked_shl(i.m.idx as u32) }
     }
     #[inline]
     pub fn state<'a>(&'a self, i: Slot) -> Option<State<'a, Uninit>> {
         unsafe {
-            if *self.sm.get() & (1 << i as u8) != 0 {
+            if *self.sm.get() & 1u8.unchecked_shl(i as u32) != 0 {
                 return None;
             }
-            *self.sm.get() |= 1 << i as u8;
+            *self.sm.get() |= 1u8.unchecked_shl(i as u32);
         }
         Some(State {
             m:  Machine {
@@ -183,13 +183,14 @@ impl Pio {
         if p.len == 0 {
             return Err(PioError::InvalidProgram);
         }
-        let n = cmp::min(N, p.len as usize);
+        let n = (p.len as usize).min(N);
         if n > MAX_INSTRUCTIONS {
             return Err(PioError::TooLarge);
         }
+        let c = unsafe { p.code.get_unchecked(0..n) };
         let (s, m) = match p.start {
-            Some(v) => self.try_install(v, &p.code[0..n]).map(|r| (v, r)),
-            None => self.try_install_find(&p.code[0..n]),
+            Some(v) => self.try_install_at(v, c).map(|r| (v, r)),
+            None => self.try_install(c),
         }
         .ok_or(PioError::TooLarge)?;
         Ok(Handle {
@@ -200,11 +201,11 @@ impl Pio {
         })
     }
 
-    #[inline(always)]
+    #[inline]
     pub unsafe fn uninstall(&mut self, h: Handle) {
         self.used &= !h.mask
     }
-    #[inline(always)]
+    #[inline]
     pub unsafe fn state_unsafe<'a>(&'a self, i: Slot) -> State<'a, Uninit> {
         State {
             m:  Machine {
@@ -217,25 +218,25 @@ impl Pio {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn ptr(&self) -> &RegisterBlock {
         unsafe { &*self.dev }
     }
     #[inline]
-    fn try_install_find(&mut self, code: &[u16]) -> Option<(u8, u32)> {
+    fn try_install(&mut self, code: &[u16]) -> Option<(u8, u32)> {
         for i in 0..MAX_INSTRUCTIONS {
-            match self.try_install(i as u8, code) {
+            match self.try_install_at(i as u8, code) {
                 Some(v) => return Some((i as u8, v)),
                 None => continue,
             }
         }
         None
     }
-    fn try_install(&mut self, start: u8, code: &[u16]) -> Option<u32> {
+    fn try_install_at(&mut self, start: u8, code: &[u16]) -> Option<u32> {
         let (d, mut u) = (self.ptr(), 0u32);
         for (i, x) in code.iter().enumerate() {
-            let v = (i as u8 + start) % 0x20;
-            let m = 1u32 << v;
+            let v = (i as u8 + start).min(31);
+            let m = unsafe { 1u32.unchecked_shl(v as u32) };
             if (self.used | u) & m != 0 {
                 return None;
             }
@@ -248,41 +249,41 @@ impl Pio {
     }
 }
 impl Handle {
-    #[inline(always)]
-    pub fn mask(&self) -> u32 {
+    #[inline]
+    pub const fn mask(&self) -> u32 {
         self.mask
     }
-    #[inline(always)]
-    pub fn offset(&self) -> u8 {
+    #[inline]
+    pub const fn offset(&self) -> u8 {
         self.offset
     }
-    #[inline(always)]
-    pub fn wrap_src(&self) -> u8 {
+    #[inline]
+    pub const fn wrap_src(&self) -> u8 {
         self.src
     }
-    #[inline(always)]
-    pub fn wrap_target(&self) -> u8 {
+    #[inline]
+    pub const fn wrap_target(&self) -> u8 {
         self.target
     }
-    #[inline(always)]
-    pub fn wrap_src_adjusted(&self) -> u8 {
+    #[inline]
+    pub const fn wrap_src_adjusted(&self) -> u8 {
         self.src.saturating_add(self.offset)
     }
-    #[inline(always)]
-    pub fn wrap_target_adjusted(&self) -> u8 {
+    #[inline]
+    pub const fn wrap_target_adjusted(&self) -> u8 {
         self.target.saturating_add(self.offset)
     }
 }
 impl<'a> Synced<'a> {
-    #[inline(always)]
+    #[inline]
     pub fn add(mut self, other: &'a State<Stopped>) -> Synced<'a> {
-        self.m |= 1 << other.idx as u8;
+        self.m |= unsafe { 1u32.unchecked_shl(other.idx as u32) };
         self
     }
 }
 impl<'a> State<'a, Uninit> {
-    #[inline(always)]
-    pub(self) fn init(self) -> State<'a, Stopped> {
+    #[inline]
+    fn init(self) -> State<'a, Stopped> {
         State {
             m:  Machine {
                 _p:  PhantomData,
@@ -305,7 +306,7 @@ impl<'a> State<'a, Stopped> {
         self.started()
     }
 
-    #[inline(always)]
+    #[inline]
     fn started(self) -> State<'a, Running> {
         State {
             m:  Machine {
@@ -325,7 +326,7 @@ impl<'a> State<'a, Running> {
         self.stopped()
     }
 
-    #[inline(always)]
+    #[inline]
     fn stopped(self) -> State<'a, Stopped> {
         State {
             m:  Machine {
@@ -343,9 +344,9 @@ impl<S: PioState> Machine<S> {
     pub fn pc(&self) -> u32 {
         self.sm().sm_addr().read().bits()
     }
-    #[inline(always)]
+    #[inline]
     pub fn restart(&mut self) {
-        self.ctrl(1 << (self.idx as u8 + 4), false)
+        self.ctrl(unsafe { 1u32.unchecked_shl(self.idx as u32 + 4) }, false)
     }
     #[inline]
     pub fn x(&mut self) -> u32 {
@@ -368,9 +369,9 @@ impl<S: PioState> Machine<S> {
         s.sm_shiftctrl().modify(|_, r| r.fjoin_rx().bit(!v));
         s.sm_shiftctrl().modify(|_, r| r.fjoin_rx().bit(v))
     }
-    #[inline(always)]
+    #[inline]
     pub fn restart_clock(&mut self) {
-        self.ctrl(1 << (self.idx as u8 + 8), false)
+        self.ctrl(unsafe { 1u32.unchecked_shl(self.idx as u32 + 8) }, false)
     }
     #[inline]
     pub fn set_x(&mut self, v: u32) {
@@ -388,15 +389,15 @@ impl<S: PioState> Machine<S> {
     }
     #[inline]
     pub fn is_enabled(&self) -> bool {
-        self.pio().ctrl().read().sm_enable().bits() & (1 << self.idx as u8) != 0
+        unsafe { self.pio().ctrl().read().sm_enable().bits() & 1u8.unchecked_shl(self.idx as u32) != 0 }
     }
     #[inline]
     pub fn is_stalled(&self) -> bool {
         self.sm().sm_execctrl().read().exec_stalled().bit()
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_state(&mut self, en: bool) {
-        self.ctrl(1 << self.idx as u8, !en)
+        self.ctrl(unsafe { 1u32.unchecked_shl(self.idx as u32) }, !en)
     }
     #[inline]
     pub fn set_clock_div(&mut self, int: u16, frac: u8) {
@@ -414,15 +415,15 @@ impl<S: PioState> Machine<S> {
         self.sm().sm_instr().write(|r| unsafe { r.sm0_instr().bits(inst) })
     }
 
-    #[inline(always)]
+    #[inline]
     fn sm(&self) -> &SM {
         unsafe { &*self.sm }
     }
-    #[inline(always)]
+    #[inline]
     fn pio(&self) -> &RegisterBlock {
         unsafe { &*self.pio }
     }
-    #[inline(always)]
+    #[inline]
     fn ctrl(&self, v: u32, clear: bool) {
         write_reg(self.pio().ctrl().as_ptr(), v, clear)
     }
@@ -440,38 +441,38 @@ impl<const N: usize> Program<N> {
     }
 }
 impl<'a, S: PioState> State<'a, S> {
-    #[inline(always)]
+    #[inline]
     pub fn group(self, other: State<'a, S>) -> StateGroup2<'a, S> {
         StateGroup2::new(self, other)
     }
 
-    #[inline(always)]
+    #[inline]
     pub unsafe fn recouple(self, m: Machine<S>) -> State<'a, S> {
         State { m, _p: PhantomData }
     }
 }
 impl<S: PioStateOccupied> Machine<S> {
-    #[inline(always)]
+    #[inline]
     pub fn rx_u8(&self) -> Rx<u8> {
         Rx::new(self)
     }
-    #[inline(always)]
+    #[inline]
     pub fn tx_u8(&self) -> Tx<u8> {
         Tx::new(self)
     }
-    #[inline(always)]
+    #[inline]
     pub fn rx_u16(&self) -> Rx<u16> {
         Rx::new(self)
     }
-    #[inline(always)]
+    #[inline]
     pub fn tx_u16(&self) -> Tx<u16> {
         Tx::new(self)
     }
-    #[inline(always)]
+    #[inline]
     pub fn rx_u32(&self) -> Rx<u32> {
         Rx::new(self)
     }
-    #[inline(always)]
+    #[inline]
     pub fn tx_u32(&self) -> Tx<u32> {
         Tx::new(self)
     }
@@ -483,15 +484,17 @@ impl<S: PioStateOccupied> Machine<S> {
     pub fn tx<T: PioIO>(&self) -> Tx<T> {
         Tx::new(self)
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_pin_sync_bypass(&self, pin: PinID) {
-        self.pio().input_sync_bypass().write(|r| unsafe { r.bits(1 << pin as u8) });
+        self.pio()
+            .input_sync_bypass()
+            .write(|r| unsafe { r.bits(1u32.unchecked_shl(pin as u32)) });
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_pins_sync_bypass(&self, pins: &[PinID]) {
         self.pio()
             .input_sync_bypass()
-            .write(|r| unsafe { r.bits(pins.iter().map(|v| 1 << *v as u8).sum()) });
+            .write(|r| unsafe { r.bits(pins.iter().map(|v| 1u32.unchecked_mul(*v as u32)).sum()) });
     }
     pub fn set_pin_state(&mut self, state: PinState, pin: PinID) {
         let v = match state {
@@ -513,7 +516,7 @@ impl<S: PioStateOccupied> Machine<S> {
         let f = self.pio == PIO0::PTR;
         self.paused(|m| {
             let s = m.sm();
-            for i in pins {
+            for i in pins.iter() {
                 i.set_pio(f);
                 unsafe {
                     s.sm_pinctrl().write(|r| r.set_base().bits(*i as u8).set_count().bits(1));
@@ -542,7 +545,7 @@ impl<S: PioStateOccupied> Machine<S> {
         let f = self.pio == PIO0::PTR;
         self.paused(|m| {
             let s = m.sm();
-            for i in pins {
+            for i in pins.iter() {
                 i.set_pio(f);
                 unsafe {
                     s.sm_pinctrl().write(|r| r.set_base().bits(*i as u8).set_count().bits(1));
@@ -585,22 +588,22 @@ impl<'a, S: PioStateOccupied> State<'a, S> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub unsafe fn uncouple(self) -> Machine<S> {
         self.m
     }
 }
 
 impl Drop for Synced<'_> {
-    #[inline(always)]
+    #[inline]
     fn drop(&mut self) {
-        self.s.ctrl(self.m << 8, false)
+        self.s.ctrl(unsafe { self.m.unchecked_shl(8) }, false)
     }
 }
 
 impl Copy for Slot {}
 impl Clone for Slot {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Slot {
         *self
     }
@@ -608,34 +611,41 @@ impl Clone for Slot {
 
 impl Copy for PioID {}
 impl Clone for PioID {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> PioID {
         *self
-    }
-}
-
-impl Debug for PioError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::InvalidProgram => f.write_str("InvalidProgram"),
-            Self::TooLarge => f.write_str("TooLarge"),
-            PioError::WouldBlock => f.write_str("WouldBlock"),
-        }
     }
 }
 
 impl<'a, S: PioState> Deref for State<'a, S> {
     type Target = Machine<S>;
 
-    #[inline(always)]
+    #[inline]
     fn deref(&self) -> &Machine<S> {
         &self.m
     }
 }
 impl<'a, S: PioState> DerefMut for State<'a, S> {
-    #[inline(always)]
+    #[inline]
     fn deref_mut(&mut self) -> &mut Machine<S> {
         &mut self.m
+    }
+}
+
+impl Debug for PioError {
+    #[cfg(feature = "debug")]
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            PioError::TooLarge => f.write_str("TooLarge"),
+            PioError::WouldBlock => f.write_str("WouldBlock"),
+            PioError::InvalidProgram => f.write_str("InvalidProgram"),
+        }
+    }
+    #[cfg(not(feature = "debug"))]
+    #[inline]
+    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
+        Ok(())
     }
 }
 

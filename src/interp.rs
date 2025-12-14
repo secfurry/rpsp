@@ -57,7 +57,7 @@ pub type Interpoler0 = Interpoler<Num0>;
 pub type Interpoler1 = Interpoler<Num1>;
 
 impl LaneConfig {
-    #[inline(always)]
+    #[inline]
     pub const fn new() -> LaneConfig {
         LaneConfig {
             shift:        0,
@@ -77,13 +77,13 @@ impl LaneConfig {
     pub const fn as_ctrl(&self) -> u32 {
         (if self.clamp { 0x400000u32 } else { 0u32 })
             | (if self.blend { 0x200000u32 } else { 0u32 })
-            | ((self.msb_force as u32) << 19)
+            | unsafe { (self.msb_force as u32).unchecked_shl(19) }
             | (if self.add_with_raw { 0x40000u32 } else { 0u32 })
             | (if self.result_cross { 0x20000u32 } else { 0u32 })
             | (if self.input_cross { 0x10000u32 } else { 0u32 })
             | (if self.signed { 0x8000u32 } else { 0u32 })
-            | ((self.msb_mask as u32) << 10)
-            | ((self.lsb_mask as u32) << 5)
+            | unsafe { (self.msb_mask as u32).unchecked_shl(10) }
+            | unsafe { (self.lsb_mask as u32).unchecked_shl(5) }
             | (self.shift as u32)
     }
     #[inline]
@@ -138,7 +138,7 @@ impl LaneConfig {
     }
 }
 impl Interpoler<Num0> {
-    #[inline(always)]
+    #[inline]
     pub const fn get() -> Interpoler0 {
         Interpoler {
             lane0: Lane(PhantomData),
@@ -169,7 +169,7 @@ impl Interpoler<Num0> {
     }
 }
 impl Interpoler<Num1> {
-    #[inline(always)]
+    #[inline]
     pub const fn get() -> Interpoler1 {
         Interpoler {
             lane0: Lane(PhantomData),
@@ -368,11 +368,11 @@ impl Lane<Num1, Lane1> {
     }
 }
 impl<S: InterpolerSlot> Interpoler<S> {
-    #[inline(always)]
+    #[inline]
     pub const fn lane0(&mut self) -> &mut Lane<S, Lane0> {
         &mut self.lane0
     }
-    #[inline(always)]
+    #[inline]
     pub const fn lane1(&mut self) -> &mut Lane<S, Lane1> {
         &mut self.lane1
     }
@@ -384,26 +384,26 @@ impl InterpolerSlotLane for Lane0 {}
 impl InterpolerSlotLane for Lane1 {}
 
 impl Default for LaneConfig {
-    #[inline(always)]
+    #[inline]
     fn default() -> LaneConfig {
         LaneConfig::new()
     }
 }
 
 impl From<LaneConfig> for u32 {
-    #[inline(always)]
+    #[inline]
     fn from(v: LaneConfig) -> u32 {
         v.as_ctrl()
     }
 }
 impl From<&LaneConfig> for u32 {
-    #[inline(always)]
+    #[inline]
     fn from(v: &LaneConfig) -> u32 {
         v.as_ctrl()
     }
 }
 impl From<&mut LaneConfig> for u32 {
-    #[inline(always)]
+    #[inline]
     fn from(v: &mut LaneConfig) -> u32 {
         v.as_ctrl()
     }

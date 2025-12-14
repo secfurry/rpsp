@@ -24,7 +24,8 @@ extern crate core;
 use core::clone::Clone;
 use core::default::Default;
 use core::marker::Copy;
-use core::{cmp, matches};
+use core::matches;
+use core::option::Option::{None, Some};
 
 use crate::pin::PinID;
 use crate::pio::state::{Stopped, Uninit};
@@ -112,7 +113,7 @@ pub struct Config {
 }
 
 impl Config {
-    #[inline(always)]
+    #[inline]
     pub const fn new() -> Config {
         Config {
             origin:                0u8,
@@ -144,8 +145,8 @@ impl Config {
             inline_out_bit:        0u8,
         }
     }
-    #[inline(always)]
-    pub const fn new_program(h: &Handle) -> Config {
+    #[inline]
+    pub const fn new_with(h: &Handle) -> Config {
         Config {
             origin:                h.offset,
             fifo:                  Fifo::Both,
@@ -176,169 +177,182 @@ impl Config {
             inline_out_bit:        0u8,
         }
     }
-
-    #[inline(always)]
-    pub fn set_program(&mut self, h: &Handle) {
-        self.origin = h.offset;
-        self.wrap_top = h.wrap_src_adjusted();
-        self.wrap_bottom = h.wrap_target_adjusted();
-    }
-    #[inline(always)]
-    pub fn origin(mut self, addr: u8) -> Config {
+    #[inline]
+    pub const fn origin(mut self, addr: u8) -> Config {
         self.origin = addr;
         self
     }
-    #[inline(always)]
-    pub fn program(mut self, h: &Handle) -> Config {
+    #[inline]
+    pub const fn program(mut self, h: &Handle) -> Config {
         self.set_program(h);
         self
     }
-    #[inline(always)]
-    pub fn pull_auto(mut self, en: bool) -> Config {
+    #[inline]
+    pub const fn pull_auto(mut self, en: bool) -> Config {
         self.pull_auto = en;
         self
     }
-    #[inline(always)]
-    pub fn push_auto(mut self, en: bool) -> Config {
+    #[inline]
+    pub const fn push_auto(mut self, en: bool) -> Config {
         self.push_auto = en;
         self
     }
-    #[inline(always)]
-    pub fn fifo_alloc(mut self, v: Fifo) -> Config {
+    #[inline]
+    pub const fn fifo_alloc(mut self, v: Fifo) -> Config {
         self.fifo = v;
         self
     }
-    #[inline(always)]
-    pub fn set_pin(mut self, pin: PinID) -> Config {
+    #[inline]
+    pub const fn set_pin(mut self, pin: PinID) -> Config {
         self.set_pin = pin;
         self.set_pin_count = 1u8;
         self
     }
-    #[inline(always)]
-    pub fn jump_pin(mut self, pin: PinID) -> Config {
+    #[inline]
+    pub const fn jump_pin(mut self, pin: PinID) -> Config {
         self.jump_pin = pin;
         self
     }
-    #[inline(always)]
-    pub fn pull_shift(mut self, v: Shift) -> Config {
+    #[inline]
+    pub const fn pull_shift(mut self, v: Shift) -> Config {
         self.pull_shift = v;
         self
     }
-    #[inline(always)]
-    pub fn push_shift(mut self, v: Shift) -> Config {
+    #[inline]
+    pub const fn push_shift(mut self, v: Shift) -> Config {
         self.push_shift = v;
         self
     }
-    #[inline(always)]
-    pub fn pull_threshold(mut self, v: u8) -> Config {
+    #[inline]
+    pub const fn pull_threshold(mut self, v: u8) -> Config {
         self.pull_threshold = v;
         self
     }
-    #[inline(always)]
-    pub fn push_threshold(mut self, v: u8) -> Config {
+    #[inline]
+    pub const fn push_threshold(mut self, v: u8) -> Config {
         self.push_threshold = v;
         self
     }
-    #[inline(always)]
-    pub fn input_pin(mut self, pin: PinID) -> Config {
+    #[inline]
+    pub const fn input_pin(mut self, pin: PinID) -> Config {
         self.input_pin = pin;
         self
     }
-    #[inline(always)]
-    pub fn output_pin(mut self, pin: PinID) -> Config {
+    #[inline]
+    pub const fn output_pin(mut self, pin: PinID) -> Config {
         self.output_pin = pin;
         self.output_pin_count = 1u8;
         self
     }
-    #[inline(always)]
-    pub fn sticky_output(mut self, en: bool) -> Config {
+    #[inline]
+    pub const fn sticky_output(mut self, en: bool) -> Config {
         self.sticky_output = en;
         self
     }
-    #[inline(always)]
-    pub fn clock_div_float(mut self, v: f32) -> Config {
+    #[inline]
+    pub const fn clock_div_float(mut self, v: f32) -> Config {
         self.clock_div_int = v as u16;
         self.clock_div_frac = (((self.clock_div_int as f32) - v) * 255f32) as u8;
         self
     }
-    #[inline(always)]
-    pub fn sideset_pin(mut self, pin: PinID) -> Config {
+    #[inline]
+    pub const fn sideset_pin(mut self, pin: PinID) -> Config {
         self.sideset_pin = pin;
         self.sideset_pin_count = 1u8;
         self
     }
-    #[inline(always)]
-    pub fn set_pins(mut self, pins: &[PinID]) -> Config {
+    #[inline]
+    pub const fn set_pins(mut self, pins: &[PinID]) -> Config {
         // set_pin_count has a max of 5.
-        self.set_pin_count = cmp::min(pins.len() as u8, 5);
-        self.set_pin = pins.first().copied().unwrap_or(PinID::Pin0);
+        self.set_pin_count = if pins.len() > 5 { 5u8 } else { pins.len() as u8 };
+        self.set_pin = match pins.first().copied() {
+            Some(v) => v,
+            None => PinID::Pin0,
+        };
         self
     }
-    #[inline(always)]
-    pub fn wrap(mut self, top: u8, bottom: u8) -> Config {
+    #[inline]
+    pub const fn wrap(mut self, top: u8, bottom: u8) -> Config {
         self.wrap_top = top;
         self.wrap_bottom = bottom;
         self
     }
-    #[inline(always)]
-    pub fn input_pins(mut self, pins: &[PinID]) -> Config {
-        self.input_pin = pins.first().copied().unwrap_or(PinID::Pin0);
+    #[inline]
+    pub const fn input_pins(mut self, pins: &[PinID]) -> Config {
+        self.input_pin = match pins.first().copied() {
+            Some(v) => v,
+            None => PinID::Pin0,
+        };
         self
     }
-    #[inline(always)]
-    pub fn output_pins(mut self, pins: &[PinID]) -> Config {
+    #[inline]
+    pub const fn output_pins(mut self, pins: &[PinID]) -> Config {
         self.output_pin_count = pins.len() as u8;
-        self.output_pin = pins.first().copied().unwrap_or(PinID::Pin0);
+        self.output_pin = match pins.first().copied() {
+            Some(v) => v,
+            None => PinID::Pin0,
+        };
         self
     }
-    #[inline(always)]
-    pub fn sideset_as_enable(mut self, en: bool) -> Config {
+    #[inline]
+    pub const fn sideset_as_enable(mut self, en: bool) -> Config {
         self.sideset_as_enable = en;
         self
     }
-    #[inline(always)]
-    pub fn clock_div(mut self, int: u16, frac: u8) -> Config {
+    #[inline]
+    pub const fn clock_div(mut self, int: u16, frac: u8) -> Config {
         self.clock_div_int = int;
         self.clock_div_frac = frac;
         self
     }
-    #[inline(always)]
-    pub fn sideset_pins(mut self, pins: &[PinID]) -> Config {
+    #[inline]
+    pub const fn sideset_pins(mut self, pins: &[PinID]) -> Config {
         self.sideset_pin_count = pins.len() as u8;
-        self.sideset_pin = pins.first().copied().unwrap_or(PinID::Pin0);
+        self.sideset_pin = match pins.first().copied() {
+            Some(v) => v,
+            None => PinID::Pin0,
+        };
         self
     }
-    #[inline(always)]
-    pub fn status(mut self, level: u8, source: Source) -> Config {
+    #[inline]
+    pub const fn status(mut self, level: u8, source: Source) -> Config {
         self.status_src = source;
         self.status_level = level;
         self
     }
-    #[inline(always)]
-    pub fn sideset_as_pin_directions(mut self, en: bool) -> Config {
+    #[inline]
+    pub const fn sideset_as_pin_directions(mut self, en: bool) -> Config {
         self.sideset_as_directions = en;
         self
     }
-    #[inline(always)]
-    pub fn inline_output(mut self, en: bool, bit_pos: u8) -> Config {
+    #[inline]
+    pub const fn inline_output(mut self, en: bool, bit_pos: u8) -> Config {
         self.inline_out_enable = en;
         self.inline_out_bit = bit_pos;
         self
     }
-    #[inline(always)]
-    pub fn pull(mut self, auto: bool, thresh: u8, shift: Shift) -> Config {
+    #[inline]
+    pub const fn pull(mut self, auto: bool, thresh: u8, shift: Shift) -> Config {
         self.pull_auto = auto;
         self.pull_shift = shift;
         self.pull_threshold = thresh;
         self
     }
-    #[inline(always)]
-    pub fn push(mut self, auto: bool, thresh: u8, shift: Shift) -> Config {
+    #[inline]
+    pub const fn push(mut self, auto: bool, thresh: u8, shift: Shift) -> Config {
         self.push_auto = auto;
         self.push_shift = shift;
         self.push_threshold = thresh;
         self
     }
+
+    #[inline]
+    pub const fn set_program(&mut self, h: &Handle) {
+        self.origin = h.offset;
+        self.wrap_top = h.wrap_src_adjusted();
+        self.wrap_bottom = h.wrap_target_adjusted();
+    }
+
     pub fn configure<'a>(&self, mut s: State<'a, Uninit>) -> State<'a, Stopped> {
         s.set_state(false);
         let v = s.m.sm();
@@ -391,7 +405,7 @@ impl Config {
 
 impl Copy for Fifo {}
 impl Clone for Fifo {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Fifo {
         *self
     }
@@ -399,7 +413,7 @@ impl Clone for Fifo {
 
 impl Copy for Source {}
 impl Clone for Source {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Source {
         *self
     }
@@ -407,14 +421,14 @@ impl Clone for Source {
 
 impl Copy for Shift {}
 impl Clone for Shift {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Shift {
         *self
     }
 }
 
 impl Default for Config {
-    #[inline(always)]
+    #[inline]
     fn default() -> Config {
         Config::new()
     }

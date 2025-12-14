@@ -64,7 +64,7 @@ impl Lock {
     }
     fn acquire() -> Lock {
         let e = read().is_active();
-        let c = unsafe { (*SIO::ptr()).cpuid().read().bits() } as u8 + 1u8;
+        let c = unsafe { (*SIO::ptr()).cpuid().read().bits() } as u8 + 1;
         if SINGLETON.load(Ordering::Acquire) == c {
             return Lock(0xFF);
         }
@@ -85,7 +85,7 @@ impl Lock {
     }
 }
 impl<T> Mutex<T> {
-    #[inline(always)]
+    #[inline]
     pub const fn new(v: T) -> Mutex<T> {
         Mutex { v: UnsafeCell::new(v) }
     }
@@ -108,7 +108,7 @@ impl<T> Mutex<T> {
     }
 }
 impl<'a> Section<'a> {
-    #[inline(always)]
+    #[inline]
     const fn new() -> Section<'a> {
         Section { _p: PhantomData, _s: PhantomData }
     }
@@ -144,7 +144,7 @@ impl<T: Default> Mutex<RefCell<T>> {
 }
 
 impl Drop for Guard {
-    #[inline(always)]
+    #[inline]
     fn drop(&mut self) {
         Lock::release(&self.0)
     }
@@ -156,8 +156,7 @@ unsafe impl<T> Sync for Mutex<T> where T: Send {}
 pub fn with<T>(func: impl FnOnce(Section) -> T) -> T {
     let g = Guard(Lock::acquire());
     let r = func(Section::new());
-    // Explicitly drop 'g'.
-    drop(g);
+    drop(g); // Explicitly drop 'g'.
     r
 }
 

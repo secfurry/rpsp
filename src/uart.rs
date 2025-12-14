@@ -24,11 +24,11 @@ extern crate core;
 use core::convert::TryFrom;
 use core::default::Default;
 use core::fmt::{self, Debug, Formatter, Write};
+use core::hint::unreachable_unchecked;
 use core::marker::Send;
 use core::option::Option::{self, None, Some};
 use core::ptr::NonNull;
 use core::result::Result::{self, Err, Ok};
-use core::unreachable;
 
 use crate::Board;
 use crate::asm::nop;
@@ -177,18 +177,15 @@ impl Uart {
     }
     #[inline]
     pub fn set_rx_interrupt(&mut self, en: bool) {
-        self.ptr().uartimsc().modify(|_, r| {
-            r.rxim().bit(en);
-            r.rtim().bit(en)
-        })
+        self.ptr().uartimsc().modify(|_, r| r.rxim().bit(en).rtim().bit(en))
     }
     pub fn write_full(&mut self, b: &[u8]) -> usize {
         let mut n = 0;
         while n < b.len() {
-            n += match self.write(&b[n..]) {
+            n += match self.write(unsafe { b.get_unchecked(n..) }) {
                 Ok(n) => n,
                 Err(UartError::WouldBlock) => continue,
-                Err(_) => unreachable!(),
+                Err(_) => unsafe { unreachable_unchecked() }, // Can never reach this by 'write' def
             }
         }
         n
@@ -212,7 +209,7 @@ impl Uart {
     pub fn write(&mut self, b: &[u8]) -> Result<usize, UartError> {
         let mut n = 0usize;
         let p = self.ptr();
-        for i in b {
+        for i in b.iter() {
             if !self.is_writable() {
                 return if n == 0 { Err(UartError::WouldBlock) } else { Ok(n) };
             }
@@ -230,13 +227,13 @@ impl Uart {
             }
             let v = p.uartdr().read().bits();
             match v {
-                _ if (v >> 0xB) & 1 != 0 => return Err(UartError::ReadOverrun),
-                _ if (v >> 0xA) & 1 != 0 => return Err(UartError::ReadBreak),
-                _ if (v >> 0x9) & 1 != 0 => return Err(UartError::ReadInvalid),
-                _ if (v >> 0x8) & 1 != 0 => return Err(UartError::ReadInvalid),
+                _ if unsafe { v.unchecked_shr(0xB) & 1 } != 0 => return Err(UartError::ReadOverrun),
+                _ if unsafe { v.unchecked_shr(0xA) & 1 } != 0 => return Err(UartError::ReadBreak),
+                _ if unsafe { v.unchecked_shr(0x9) & 1 } != 0 => return Err(UartError::ReadInvalid),
+                _ if unsafe { v.unchecked_shr(0x8) & 1 } != 0 => return Err(UartError::ReadInvalid),
                 _ => (),
             }
-            b[n] = (v & 0xFF) as u8;
+            unsafe { *b.get_unchecked_mut(n) = (v & 0xFF) as u8 };
             n += 1;
         }
         Ok(n)
@@ -244,7 +241,7 @@ impl Uart {
     pub fn read_full(&mut self, b: &mut [u8]) -> Result<usize, UartError> {
         let mut n = 0;
         while n < b.len() {
-            n += match self.read(&mut b[n..]) {
+            n += match self.read(unsafe { b.get_unchecked_mut(n..) }) {
                 Ok(n) => n,
                 Err(UartError::WouldBlock) => continue,
                 Err(e) => return Err(e),
@@ -253,7 +250,7 @@ impl Uart {
         Ok(n)
     }
 
-    #[inline(always)]
+    #[inline]
     fn ptr(&self) -> &RegisterBlock {
         unsafe { self.dev.as_ref() }
     }
@@ -277,7 +274,7 @@ impl UartDev {
         Ok(d)
     }
 
-    #[inline(always)]
+    #[inline]
     fn id(&self) -> Option<UartID> {
         pins_uart(&self.tx, &self.rx, self.cts.as_ref(), self.rts.as_ref())
     }
@@ -310,7 +307,7 @@ impl UartDev {
 impl UartConfig {
     pub const DEFAULT_BAUDRATE: u32 = 115_200u32;
 
-    #[inline(always)]
+    #[inline]
     pub const fn new() -> UartConfig {
         UartConfig {
             parity:    UartParity::None,
@@ -336,7 +333,7 @@ impl UartConfig {
     }
 }
 impl UartWatermark {
-    #[inline(always)]
+    #[inline]
     fn bits_tx(&self) -> u8 {
         match self {
             UartWatermark::Bytes4 => 0x4u8,
@@ -346,7 +343,7 @@ impl UartWatermark {
             UartWatermark::Bytes28 => 0x0u8,
         }
     }
-    #[inline(always)]
+    #[inline]
     fn bits_rx(&self) -> u8 {
         match self {
             UartWatermark::Bytes4 => 0x0u8,
@@ -359,7 +356,7 @@ impl UartWatermark {
 }
 
 impl Write for Uart {
-    #[inline(always)]
+    #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_full(s.as_bytes());
         Ok(())
@@ -367,7 +364,7 @@ impl Write for Uart {
 }
 
 impl Default for UartConfig {
-    #[inline(always)]
+    #[inline]
     fn default() -> UartConfig {
         UartConfig::new()
     }
@@ -376,7 +373,7 @@ impl Default for UartConfig {
 impl TryFrom<(PinID, PinID)> for UartDev {
     type Error = UartError;
 
-    #[inline(always)]
+    #[inline]
     fn try_from(v: (PinID, PinID)) -> Result<UartDev, UartError> {
         UartDev::new(v.0, v.1)
     }
@@ -384,7 +381,7 @@ impl TryFrom<(PinID, PinID)> for UartDev {
 impl TryFrom<(PinID, PinID, PinID, PinID)> for UartDev {
     type Error = UartError;
 
-    #[inline(always)]
+    #[inline]
     fn try_from(v: (PinID, PinID, PinID, PinID)) -> Result<UartDev, UartError> {
         UartDev::new_cts(v.0, v.1, v.2, v.3)
     }
@@ -395,11 +392,11 @@ impl DmaReader<u8> for Uart {
     fn rx_req(&self) -> Option<u8> {
         Some(if self.dev.as_ptr().addr() == UART0::PTR.addr() { 0x15 } else { 0x17 })
     }
-    #[inline(always)]
+    #[inline]
     fn rx_info(&self) -> (u32, u32) {
         (self.ptr().uartdr().as_ptr() as u32, u32::MAX)
     }
-    #[inline(always)]
+    #[inline]
     fn rx_incremented(&self) -> bool {
         false
     }
@@ -409,11 +406,11 @@ impl DmaWriter<u8> for Uart {
     fn tx_req(&self) -> Option<u8> {
         Some(if self.dev.as_ptr().addr() == UART0::PTR.addr() { 0x14 } else { 0x16 })
     }
-    #[inline(always)]
+    #[inline]
     fn tx_info(&self) -> (u32, u32) {
         (self.ptr().uartdr().as_ptr() as u32, u32::MAX)
     }
-    #[inline(always)]
+    #[inline]
     fn tx_incremented(&self) -> bool {
         false
     }
@@ -421,8 +418,8 @@ impl DmaWriter<u8> for Uart {
 
 unsafe impl Send for Uart {}
 
-#[cfg(feature = "debug")]
 impl Debug for UartError {
+    #[cfg(feature = "debug")]
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -434,10 +431,8 @@ impl Debug for UartError {
             UartError::ReadInvalid => f.write_str("ReadInvalid"),
         }
     }
-}
-#[cfg(not(feature = "debug"))]
-impl Debug for UartError {
-    #[inline(always)]
+    #[cfg(not(feature = "debug"))]
+    #[inline]
     fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
         Ok(())
     }
@@ -449,9 +444,9 @@ fn calc_dvs(w: u32, f: u32) -> Result<(u16, u16), UartError> {
         .checked_mul(0x8)
         .and_then(|v| v.checked_div(w))
         .ok_or(UartError::InvalidBaudRate)?;
-    match (r >> 7, ((r & 0x7F) + 1) / 2) {
-        (0, _) => Ok((1u16, 0u16)),
-        (x, _) if x >= 0xFFFF => Ok((0xFFFFu16, 0u16)),
+    match (unsafe { r.unchecked_shr(7) }, ((r & 0x7F) + 1) / 2) {
+        (0, _) => Ok((1, 0)),
+        (x, _) if x >= 0xFFFF => Ok((0xFFFF, 0)),
         (x, y) => Ok((x as u16, y as u16)),
     }
 }

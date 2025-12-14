@@ -21,16 +21,17 @@
 
 extern crate core;
 
+use core::cmp::Ord;
 use core::convert::{From, TryFrom};
 use core::default::Default;
 use core::fmt::{self, Debug, Formatter};
 use core::iter::Iterator;
 use core::marker::{PhantomData, Send};
+use core::matches;
 use core::ops::{Deref, DerefMut};
 use core::option::Option::{self, None, Some};
 use core::ptr::NonNull;
 use core::result::Result::{self, Err, Ok};
-use core::{cmp, matches};
 
 use crate::Board;
 use crate::asm::nop;
@@ -91,15 +92,15 @@ pub trait SpiIO<T: Default> {
     fn send_single(&mut self, v: T) -> Result<(), SpiError>;
     fn transfer(&mut self, input: &[T], out: &mut [T]) -> usize;
 
-    #[inline(always)]
+    #[inline]
     fn read_single(&mut self) -> T {
         self.transfer_single(T::default())
     }
-    #[inline(always)]
+    #[inline]
     fn read(&mut self, b: &mut [T]) {
         self.read_with(T::default(), b)
     }
-    #[inline(always)]
+    #[inline]
     fn write_single(&mut self, v: T) {
         let _ = self.transfer_single(v);
     }
@@ -109,8 +110,8 @@ pub trait SpiShort: SpiIO<u16> {}
 
 impl Spi {
     pub fn new(p: &Board, baudrate: u32, cfg: SpiConfig, d: SpiDev) -> Result<Spi, SpiError> {
-        let (b, mut k) = (p.system_freq(), u8::MAX);
-        for i in (2u32..=0xFEu32).step_by(2) {
+        let (b, mut k) = (p.system_freq(), 0xFFu8);
+        for i in (2..=0xFE).step_by(2) {
             if b < ((i + 2) * 0x100u32).saturating_mul(baudrate) {
                 k = i as u8;
                 break;
@@ -120,7 +121,7 @@ impl Spi {
             return Err(SpiError::InvalidFrequency);
         }
         let mut j = 0u8;
-        for i in (1u8..=0xFFu8).rev() {
+        for i in (1..=0xFF).rev() {
             if b / (k as u32 * i as u32) > baudrate {
                 j = i;
                 break;
@@ -130,8 +131,8 @@ impl Spi {
         unsafe {
             let t = &*v;
             t.sspcpsr().write(|r| r.cpsdvsr().bits(k));
-            let f = cfg.format as u8;
             t.sspcr0().modify(|_, r| {
+                let f = cfg.format as u8;
                 r.scr().bits(j).dss().bits(cfg.bits - 1).frf().bits(f);
                 if f == 0 {
                     r.spo()
@@ -193,7 +194,7 @@ impl Spi {
         self.ptr().sspsr().read().rne().bit_is_set()
     }
 
-    #[inline(always)]
+    #[inline]
     fn ptr(&self) -> &RegisterBlock {
         unsafe { self.dev.as_ref() }
     }
@@ -223,7 +224,7 @@ impl SpiDev {
         Ok(d)
     }
 
-    #[inline(always)]
+    #[inline]
     fn id(&self) -> Option<SpiID> {
         pins_spi(&self.tx, &self.sck, self.rx.as_ref(), self.cs.as_ref())
     }
@@ -256,7 +257,7 @@ impl SpiDev {
 impl SpiConfig {
     pub const DEFAULT_BAUD_RATE: u32 = 3_000_000u32;
 
-    #[inline(always)]
+    #[inline]
     pub const fn new() -> SpiConfig {
         SpiConfig {
             bits:     8u8,
@@ -294,183 +295,23 @@ impl SpiConfig {
     }
 }
 
-impl SpiIO<u8> for Spi {
-    fn write(&mut self, b: &[u8]) {
-        let p = self.ptr();
-        for i in b {
-            while p.sspsr().read().tnf().bit_is_clear() {
-                nop();
-            }
-            p.sspdr().write(|r| unsafe { r.data().bits(*i as _) });
-            while p.sspsr().read().rne().bit_is_clear() {
-                nop();
-            }
-            let _ = p.sspdr().read().data().bits();
-        }
-    }
-    #[inline]
-    fn recv_single(&mut self) -> Option<u8> {
-        if self.is_readable() { Some(self.ptr().sspdr().read().data().bits() as _) } else { None }
-    }
-    fn transfer_single(&mut self, v: u8) -> u8 {
-        let p = self.ptr();
-        while p.sspsr().read().tnf().bit_is_clear() {
-            nop();
-        }
-        p.sspdr().write(|r| unsafe { r.data().bits(v as _) });
-        while p.sspsr().read().rne().bit_is_clear() {
-            nop();
-        }
-        p.sspdr().read().data().bits() as _
-    }
-    fn read_with(&mut self, v: u8, b: &mut [u8]) {
-        let p = self.ptr();
-        for i in b {
-            while p.sspsr().read().tnf().bit_is_clear() {
-                nop();
-            }
-            p.sspdr().write(|r| unsafe { r.data().bits(v as _) });
-            while p.sspsr().read().rne().bit_is_clear() {
-                nop();
-            }
-            *i = p.sspdr().read().data().bits() as _;
-        }
-    }
-    fn transfer_in_place(&mut self, b: &mut [u8]) {
-        let p = self.ptr();
-        for i in b {
-            while p.sspsr().read().tnf().bit_is_clear() {
-                nop();
-            }
-            p.sspdr().write(|r| unsafe { r.data().bits(*i as _) });
-            while p.sspsr().read().rne().bit_is_clear() {
-                nop();
-            }
-            *i = p.sspdr().read().data().bits() as _;
-        }
-    }
-    #[inline]
-    fn send_single(&mut self, v: u8) -> Result<(), SpiError> {
-        if !self.is_writable() {
-            return Err(SpiError::WouldBlock);
-        }
-        self.ptr().sspdr().write(|r| unsafe { r.data().bits(v as _) });
-        Ok(())
-    }
-    fn transfer(&mut self, input: &[u8], out: &mut [u8]) -> usize {
-        let n = cmp::min(out.len(), input.len());
-        let p = self.ptr();
-        for i in 0..n {
-            while p.sspsr().read().tnf().bit_is_clear() {
-                nop();
-            }
-            p.sspdr().write(|r| unsafe { r.data().bits(input[i] as _) });
-            while p.sspsr().read().rne().bit_is_clear() {
-                nop();
-            }
-            out[i] = p.sspdr().read().data().bits() as _;
-        }
-        n
-    }
-}
-impl SpiIO<u16> for Spi {
-    fn write(&mut self, b: &[u16]) {
-        let p = self.ptr();
-        for i in b {
-            while p.sspsr().read().tnf().bit_is_clear() {
-                nop();
-            }
-            p.sspdr().write(|r| unsafe { r.data().bits(*i) });
-            while p.sspsr().read().rne().bit_is_clear() {
-                nop();
-            }
-            let _ = p.sspdr().read().data().bits();
-        }
-    }
-    #[inline]
-    fn recv_single(&mut self) -> Option<u16> {
-        if self.is_readable() { Some(self.ptr().sspdr().read().data().bits() as _) } else { None }
-    }
-    fn transfer_single(&mut self, v: u16) -> u16 {
-        let p = self.ptr();
-        while p.sspsr().read().tnf().bit_is_clear() {
-            nop();
-        }
-        p.sspdr().write(|r| unsafe { r.data().bits(v) });
-        while p.sspsr().read().rne().bit_is_clear() {
-            nop();
-        }
-        p.sspdr().read().data().bits()
-    }
-    fn read_with(&mut self, v: u16, b: &mut [u16]) {
-        let p = self.ptr();
-        for i in b {
-            while p.sspsr().read().tnf().bit_is_clear() {
-                nop();
-            }
-            p.sspdr().write(|r| unsafe { r.data().bits(v) });
-            while p.sspsr().read().rne().bit_is_clear() {
-                nop();
-            }
-            *i = p.sspdr().read().data().bits();
-        }
-    }
-    fn transfer_in_place(&mut self, b: &mut [u16]) {
-        let p = self.ptr();
-        for i in b {
-            while p.sspsr().read().tnf().bit_is_clear() {
-                nop();
-            }
-            p.sspdr().write(|r| unsafe { r.data().bits(*i) });
-            while p.sspsr().read().rne().bit_is_clear() {
-                nop();
-            }
-            *i = p.sspdr().read().data().bits();
-        }
-    }
-    #[inline]
-    fn send_single(&mut self, v: u16) -> Result<(), SpiError> {
-        if !self.is_writable() {
-            return Err(SpiError::WouldBlock);
-        }
-        self.ptr().sspdr().write(|r| unsafe { r.data().bits(v) });
-        Ok(())
-    }
-    fn transfer(&mut self, input: &[u16], out: &mut [u16]) -> usize {
-        let n = cmp::min(out.len(), input.len());
-        let p = self.ptr();
-        for i in 0..n {
-            while p.sspsr().read().tnf().bit_is_clear() {
-                nop();
-            }
-            p.sspdr().write(|r| unsafe { r.data().bits(input[i]) });
-            while p.sspsr().read().rne().bit_is_clear() {
-                nop();
-            }
-            out[i] = p.sspdr().read().data().bits();
-        }
-        n
-    }
-}
-
-impl Default for SpiConfig {
-    #[inline(always)]
-    fn default() -> SpiConfig {
-        SpiConfig::new()
-    }
-}
-
 impl Default for SpiFormat {
-    #[inline(always)]
+    #[inline]
     fn default() -> SpiFormat {
         SpiFormat::Motorola
+    }
+}
+impl Default for SpiConfig {
+    #[inline]
+    fn default() -> SpiConfig {
+        SpiConfig::new()
     }
 }
 
 impl TryFrom<(PinID, PinID)> for SpiDev {
     type Error = SpiError;
 
-    #[inline(always)]
+    #[inline]
     fn try_from(v: (PinID, PinID)) -> Result<SpiDev, SpiError> {
         SpiDev::new(v.0, v.1)
     }
@@ -478,7 +319,7 @@ impl TryFrom<(PinID, PinID)> for SpiDev {
 impl TryFrom<(PinID, PinID, PinID)> for SpiDev {
     type Error = SpiError;
 
-    #[inline(always)]
+    #[inline]
     fn try_from(v: (PinID, PinID, PinID)) -> Result<SpiDev, SpiError> {
         SpiDev::new_rx(v.0, v.1, v.2)
     }
@@ -486,7 +327,7 @@ impl TryFrom<(PinID, PinID, PinID)> for SpiDev {
 impl TryFrom<(PinID, PinID, PinID, PinID)> for SpiDev {
     type Error = SpiError;
 
-    #[inline(always)]
+    #[inline]
     fn try_from(v: (PinID, PinID, PinID, PinID)) -> Result<SpiDev, SpiError> {
         SpiDev::new_cs(v.0, v.1, v.2, v.3)
     }
@@ -495,7 +336,7 @@ impl TryFrom<(PinID, PinID, PinID, PinID)> for SpiDev {
 impl Deref for SpiBus<'_> {
     type Target = Spi;
 
-    #[inline(always)]
+    #[inline]
     fn deref(&self) -> &Spi {
         match self {
             SpiBus::Owned(v) => &v,
@@ -505,7 +346,7 @@ impl Deref for SpiBus<'_> {
     }
 }
 impl DerefMut for SpiBus<'_> {
-    #[inline(always)]
+    #[inline]
     fn deref_mut(&mut self) -> &mut Spi {
         match self {
             SpiBus::Owned(v) => v,
@@ -515,86 +356,26 @@ impl DerefMut for SpiBus<'_> {
     }
 }
 impl<'a> From<Spi> for SpiBus<'a> {
-    #[inline(always)]
+    #[inline]
     fn from(v: Spi) -> SpiBus<'a> {
         SpiBus::Owned(v)
     }
 }
 impl<'a> From<&'a Spi> for SpiBus<'a> {
-    #[inline(always)]
+    #[inline]
     fn from(v: &'a Spi) -> SpiBus<'a> {
         SpiBus::Duplicated((Spi { dev: v.dev }, PhantomData))
     }
 }
 impl<'a> From<&'a mut Spi> for SpiBus<'a> {
-    #[inline(always)]
+    #[inline]
     fn from(v: &'a mut Spi) -> SpiBus<'a> {
         SpiBus::Shared(v)
     }
 }
 
-impl DmaReader<u8> for Spi {
-    #[inline]
-    fn rx_req(&self) -> Option<u8> {
-        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() { 0x11 } else { 0x13 })
-    }
-    #[inline(always)]
-    fn rx_info(&self) -> (u32, u32) {
-        (self.ptr().sspdr().as_ptr() as u32, u32::MAX)
-    }
-    #[inline(always)]
-    fn rx_incremented(&self) -> bool {
-        false
-    }
-}
-impl DmaReader<u16> for Spi {
-    #[inline]
-    fn rx_req(&self) -> Option<u8> {
-        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() { 0x11 } else { 0x13 })
-    }
-    #[inline(always)]
-    fn rx_info(&self) -> (u32, u32) {
-        (self.ptr().sspdr().as_ptr() as u32, u32::MAX)
-    }
-    #[inline(always)]
-    fn rx_incremented(&self) -> bool {
-        false
-    }
-}
-
-impl DmaWriter<u8> for Spi {
-    #[inline]
-    fn tx_req(&self) -> Option<u8> {
-        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() { 0x10 } else { 0x12 })
-    }
-    #[inline]
-    fn tx_info(&self) -> (u32, u32) {
-        (self.ptr().sspdr().as_ptr() as u32, u32::MAX)
-    }
-    #[inline(always)]
-    fn tx_incremented(&self) -> bool {
-        false
-    }
-}
-impl DmaWriter<u16> for Spi {
-    #[inline]
-    fn tx_req(&self) -> Option<u8> {
-        Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() { 0x10 } else { 0x12 })
-    }
-    #[inline]
-    fn tx_info(&self) -> (u32, u32) {
-        (self.ptr().sspdr().as_ptr() as u32, u32::MAX)
-    }
-    #[inline(always)]
-    fn tx_incremented(&self) -> bool {
-        false
-    }
-}
-
-unsafe impl Send for Spi {}
-
-#[cfg(feature = "debug")]
 impl Debug for SpiError {
+    #[cfg(feature = "debug")]
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -603,11 +384,126 @@ impl Debug for SpiError {
             SpiError::InvalidFrequency => f.write_str("InvalidFrequency"),
         }
     }
-}
-#[cfg(not(feature = "debug"))]
-impl Debug for SpiError {
-    #[inline(always)]
+    #[cfg(not(feature = "debug"))]
+    #[inline]
     fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
         Ok(())
     }
 }
+
+unsafe impl Send for Spi {}
+
+macro_rules! spi_io {
+    ($ty:ty) => {
+        impl SpiIO<$ty> for Spi {
+            fn write(&mut self, b: &[$ty]) {
+                let p = self.ptr();
+                for i in b.iter() {
+                    while p.sspsr().read().tnf().bit_is_clear() {
+                        nop();
+                    }
+                    p.sspdr().write(|r| unsafe { r.data().bits(*i as _) });
+                    while p.sspsr().read().rne().bit_is_clear() {
+                        nop();
+                    }
+                    let _ = p.sspdr().read().data().bits();
+                }
+            }
+            #[inline]
+            fn recv_single(&mut self) -> Option<$ty> {
+                if self.is_readable() { Some(self.ptr().sspdr().read().data().bits() as _) } else { None }
+            }
+            fn transfer_single(&mut self, v: $ty) -> $ty {
+                let p = self.ptr();
+                while p.sspsr().read().tnf().bit_is_clear() {
+                    nop();
+                }
+                p.sspdr().write(|r| unsafe { r.data().bits(v as _) });
+                while p.sspsr().read().rne().bit_is_clear() {
+                    nop();
+                }
+                p.sspdr().read().data().bits() as _
+            }
+            fn read_with(&mut self, v: $ty, b: &mut [$ty]) {
+                let p = self.ptr();
+                for i in b.iter_mut() {
+                    while p.sspsr().read().tnf().bit_is_clear() {
+                        nop();
+                    }
+                    p.sspdr().write(|r| unsafe { r.data().bits(v as _) });
+                    while p.sspsr().read().rne().bit_is_clear() {
+                        nop();
+                    }
+                    *i = p.sspdr().read().data().bits() as _;
+                }
+            }
+            fn transfer_in_place(&mut self, b: &mut [$ty]) {
+                let p = self.ptr();
+                for i in b.iter_mut() {
+                    while p.sspsr().read().tnf().bit_is_clear() {
+                        nop();
+                    }
+                    p.sspdr().write(|r| unsafe { r.data().bits(*i as _) });
+                    while p.sspsr().read().rne().bit_is_clear() {
+                        nop();
+                    }
+                    *i = p.sspdr().read().data().bits() as _;
+                }
+            }
+            #[inline]
+            fn send_single(&mut self, v: $ty) -> Result<(), SpiError> {
+                if !self.is_writable() {
+                    return Err(SpiError::WouldBlock);
+                }
+                self.ptr().sspdr().write(|r| unsafe { r.data().bits(v as _ ) });
+                Ok(())
+            }
+            fn transfer(&mut self, input: &[$ty], out: &mut [$ty]) -> usize {
+                let (p, n) = (self.ptr(), out.len().min(input.len()));
+                for i in 0..n {
+                    while p.sspsr().read().tnf().bit_is_clear() {
+                        nop();
+                    }
+                    p.sspdr().write(|r| unsafe { r.data().bits(*input.get_unchecked(i) as _) });
+                    while p.sspsr().read().rne().bit_is_clear() {
+                        nop();
+                    }
+                    unsafe { *out.get_unchecked_mut(i) = p.sspdr().read().data().bits() as _ };
+                }
+                n
+            }
+        }
+
+        impl DmaReader<$ty> for Spi {
+            #[inline]
+            fn rx_req(&self) -> Option<u8> {
+                Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() { 0x11 } else { 0x13 })
+            }
+            #[inline]
+            fn rx_info(&self) -> (u32, u32) {
+                (self.ptr().sspdr().as_ptr() as u32, u32::MAX)
+            }
+            #[inline]
+            fn rx_incremented(&self) -> bool {
+                false
+            }
+        }
+        impl DmaWriter<$ty> for Spi {
+            #[inline]
+            fn tx_req(&self) -> Option<u8> {
+                Some(if self.dev.as_ptr().addr() == SPI0::PTR.addr() { 0x10 } else { 0x12 })
+            }
+            #[inline]
+            fn tx_info(&self) -> (u32, u32) {
+                (self.ptr().sspdr().as_ptr() as u32, u32::MAX)
+            }
+            #[inline]
+            fn tx_incremented(&self) -> bool {
+                false
+            }
+        }
+    };
+}
+
+spi_io!(u8);
+spi_io!(u16);

@@ -106,8 +106,9 @@ impl AdcPin {
         // Pull down 3
         //   1<<5 == 32 + 1 == 33 == 0x21
         // If pos 5 (32) or 1 (1) is set, this will return > 0.
+        //
         // Anything set in-between will return 0.
-        while (d.cs().read().bits() >> 3) & 0x21 == 0 {
+        while unsafe { d.cs().read().bits().unchecked_shr(3) & 0x21 == 0 } {
             nop();
         }
     }
@@ -128,11 +129,11 @@ impl AdcPin {
         self.wait_ready();
         self.read()
     }
-    #[inline(always)]
+    #[inline]
     pub fn stop_free_running(&mut self) {
         self.set_free_running(false)
     }
-    #[inline(always)]
+    #[inline]
     pub fn start_free_running(&mut self) {
         self.set_free_running(true)
     }
@@ -182,9 +183,9 @@ impl AdcTempSensor {
         // Pull down 3
         //   1<<5 == 32 + 1 == 33 == 0x21
         // If pos 5 (32) or 1 (1) is set, this will return > 0.
+        //
         // Anything set in-between will return 0.
-        while (d.cs().read().bits() >> 3) & 0x21 == 0 {
-            //spin_loop();
+        while unsafe { d.cs().read().bits().unchecked_shr(3) & 0x21 == 0 } {
             nop();
         }
     }
@@ -216,11 +217,11 @@ impl<R> AdcFifo<R> {
     pub fn len(&self) -> u8 {
         self.d.fcs().read().level().bits()
     }
-    #[inline(always)]
+    #[inline]
     pub fn pause(&mut self) {
         self.state(true);
     }
-    #[inline(always)]
+    #[inline]
     pub fn resume(&mut self) {
         self.state(false);
     }
@@ -268,7 +269,7 @@ impl<R> AdcFifo<R> {
     }
 }
 impl AdcFifoBuilder<u16> {
-    #[inline(always)]
+    #[inline]
     pub fn new() -> AdcFifoBuilder<u16> {
         AdcFifoBuilder {
             d:  unsafe { ADC::steal() },
@@ -283,7 +284,7 @@ impl AdcFifoBuilder<u16> {
     }
 }
 impl<R> AdcFifoBuilder<R> {
-    #[inline(always)]
+    #[inline]
     pub fn start(self) -> AdcFifo<R> {
         self.start_paused(false)
     }
@@ -325,13 +326,13 @@ impl<R> AdcFifoBuilder<R> {
 }
 
 impl AdcSelector for AdcPin {
-    #[inline(always)]
+    #[inline]
     fn channel(&self) -> AdcChannel {
         self.i
     }
 }
 impl AdcSelector for AdcTempSensor {
-    #[inline(always)]
+    #[inline]
     fn channel(&self) -> AdcChannel {
         AdcChannel::Chan4
     }
@@ -339,40 +340,40 @@ impl AdcSelector for AdcTempSensor {
 
 impl Copy for AdcChannel {}
 impl Clone for AdcChannel {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> AdcChannel {
         *self
     }
 }
 
 impl<A: AdcSelector> From<&A> for AdcSelection {
-    #[inline(always)]
+    #[inline]
     fn from(v: &A) -> AdcSelection {
-        AdcSelection(1 << (v.channel() as u8))
+        AdcSelection(unsafe { 1u8.unchecked_shl(v.channel() as u32) })
     }
 }
 impl<A: AdcSelector, B: AdcSelector> From<(&A, &B)> for AdcSelection {
-    #[inline(always)]
+    #[inline]
     fn from(v: (&A, &B)) -> AdcSelection {
-        AdcSelection(1 << (v.0.channel() as u8) | 1 << (v.1.channel() as u8))
+        AdcSelection(unsafe { 1u8.unchecked_shl(v.0.channel() as u32) | 1u8.unchecked_shl(v.1.channel() as u32) })
     }
 }
 impl<A: AdcSelector, B: AdcSelector, C: AdcSelector> From<(&A, &B, &C)> for AdcSelection {
-    #[inline(always)]
+    #[inline]
     fn from(v: (&A, &B, &C)) -> AdcSelection {
-        AdcSelection(1 << (v.0.channel() as u8) | 1 << (v.1.channel() as u8) | 1 << (v.2.channel() as u8))
+        AdcSelection(unsafe { 1u8.unchecked_shl(v.0.channel() as u32) | 1u8.unchecked_shl(v.1.channel() as u32) | 1u8.unchecked_shl(v.2.channel() as u32) })
     }
 }
 impl<A: AdcSelector, B: AdcSelector, C: AdcSelector, D: AdcSelector> From<(&A, &B, &C, &D)> for AdcSelection {
-    #[inline(always)]
+    #[inline]
     fn from(v: (&A, &B, &C, &D)) -> AdcSelection {
-        AdcSelection(1 << (v.0.channel() as u8) | 1 << (v.1.channel() as u8) | 1 << (v.2.channel() as u8) | 1 << (v.3.channel() as u8))
+        AdcSelection(unsafe { 1u8.unchecked_shl(v.0.channel() as u32) | 1u8.unchecked_shl(v.1.channel() as u32) | 1u8.unchecked_shl(v.2.channel() as u32) | 1u8.unchecked_shl(v.3.channel() as u32) })
     }
 }
 impl<A: AdcSelector, B: AdcSelector, C: AdcSelector, D: AdcSelector, E: AdcSelector> From<(&A, &B, &C, &D, &E)> for AdcSelection {
-    #[inline(always)]
+    #[inline]
     fn from(v: (&A, &B, &C, &D, &E)) -> AdcSelection {
-        AdcSelection(1 << (v.0.channel() as u8) | 1 << (v.1.channel() as u8) | 1 << (v.2.channel() as u8) | 1 << (v.3.channel() as u8) | 1 << (v.4.channel() as u8))
+        AdcSelection(unsafe { 1u8.unchecked_shl(v.0.channel() as u32) | 1u8.unchecked_shl(v.1.channel() as u32) | 1u8.unchecked_shl(v.2.channel() as u32) | 1u8.unchecked_shl(v.3.channel() as u32) | 1u8.unchecked_shl(v.4.channel() as u32) })
     }
 }
 

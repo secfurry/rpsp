@@ -66,7 +66,7 @@ pub fn set_voltage(v: Voltage) {
 
 impl Copy for Voltage {}
 impl Clone for Voltage {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Voltage {
         *self
     }

@@ -83,88 +83,88 @@ impl<'a> StateGroup4<'a, Stopped> {
     }
 }
 impl<'a, S: PioState> StateGroup2<'a, S> {
-    #[inline(always)]
+    #[inline]
     pub fn free(self) -> (State<'a, S>, State<'a, S>) {
         (self.0, self.1)
     }
-    #[inline(always)]
+    #[inline]
     pub fn add(self, other: State<'a, S>) -> StateGroup3<'a, S> {
         StateGroup3(self.0, self.1, other)
     }
 
-    #[inline(always)]
+    #[inline]
     pub(super) fn new(state1: State<'a, S>, state2: State<'a, S>) -> StateGroup2<'a, S> {
         StateGroup2(state1, state2)
     }
 
-    #[inline(always)]
+    #[inline]
     fn mask(&self) -> u32 {
-        (1 << self.0.m.idx as u8) | (1 << self.1.m.idx as u8)
+        unsafe { 1u32.unchecked_shl(self.0.m.idx as u32) | 1u32.unchecked_shl(self.1.m.idx as u32) }
     }
 }
 impl<'a, S: PioState> StateGroup3<'a, S> {
-    #[inline(always)]
+    #[inline]
     pub fn pop(self) -> (StateGroup2<'a, S>, State<'a, S>) {
         (StateGroup2(self.0, self.1), self.2)
     }
-    #[inline(always)]
+    #[inline]
     pub fn add(self, other: State<'a, S>) -> StateGroup4<'a, S> {
         StateGroup4(self.0, self.1, self.2, other)
     }
-    #[inline(always)]
+    #[inline]
     pub fn free(self) -> (State<'a, S>, State<'a, S>, State<'a, S>) {
         (self.0, self.1, self.2)
     }
 
-    #[inline(always)]
+    #[inline]
     fn mask(&self) -> u32 {
-        (1 << self.0.m.idx as u8) | (1 << self.1.m.idx as u8) | (1 << self.2.m.idx as u8)
+        unsafe { 1u32.unchecked_shl(self.0.m.idx as u32) | 1u32.unchecked_shl(self.1.m.idx as u32) | 1u32.unchecked_shl(self.2.m.idx as u32) }
     }
 }
 impl<'a, S: PioState> StateGroup4<'a, S> {
-    #[inline(always)]
+    #[inline]
     pub fn pop(self) -> (StateGroup3<'a, S>, State<'a, S>) {
         (StateGroup3(self.0, self.1, self.2), self.3)
     }
-    #[inline(always)]
+    #[inline]
     pub fn free(self) -> (State<'a, S>, State<'a, S>, State<'a, S>, State<'a, S>) {
         (self.0, self.1, self.2, self.3)
     }
 
-    #[inline(always)]
+    #[inline]
     fn mask(&self) -> u32 {
-        (1 << self.0.m.idx as u8) | (1 << self.1.m.idx as u8) | (1 << self.2.m.idx as u8) | (1 << self.3.m.idx as u8)
+        unsafe { 1u32.unchecked_shl(self.0.m.idx as u32) | 1u32.unchecked_shl(self.1.m.idx as u32) | 1u32.unchecked_shl(self.2.m.idx as u32) | 1u32.unchecked_shl(self.3.m.idx as u32) }
     }
 }
 impl<'a, S: PioStateOccupied> StateGroup2<'a, S> {
-    #[inline(always)]
+    #[inline]
     pub fn sync(&mut self) {
-        self.0.m.ctrl(self.mask() << 8, false)
+        self.0.m.ctrl(unsafe { self.mask().unchecked_shl(8) }, false)
     }
 }
 impl<'a, S: PioStateOccupied> StateGroup3<'a, S> {
-    #[inline(always)]
+    #[inline]
     pub fn sync(&mut self) {
-        self.0.m.ctrl(self.mask() << 8, false)
+        self.0.m.ctrl(unsafe { self.mask().unchecked_shl(8) }, false)
     }
 }
 impl<'a, S: PioStateOccupied> StateGroup4<'a, S> {
-    #[inline(always)]
+    #[inline]
     pub fn sync(&mut self) {
-        self.0.m.ctrl(self.mask() << 8, false)
+        self.0.m.ctrl(unsafe { self.mask().unchecked_shl(8) }, false)
     }
 }
 
 impl<'a, S: PioState> Deref for StateGroup2<'a, S> {
     type Target = State<'a, S>;
 
-    #[inline(always)]
+    #[inline]
     fn deref(&self) -> &State<'a, S> {
         &self.0
     }
 }
 impl<'a, S: PioState> DerefMut for StateGroup2<'a, S> {
-    #[inline(always)]
+    #[inline]
     fn deref_mut(&mut self) -> &mut State<'a, S> {
         &mut self.0
     }
@@ -173,13 +173,13 @@ impl<'a, S: PioState> DerefMut for StateGroup2<'a, S> {
 impl<'a, S: PioState> Deref for StateGroup3<'a, S> {
     type Target = State<'a, S>;
 
-    #[inline(always)]
+    #[inline]
     fn deref(&self) -> &State<'a, S> {
         &self.0
     }
 }
 impl<'a, S: PioState> DerefMut for StateGroup3<'a, S> {
-    #[inline(always)]
+    #[inline]
     fn deref_mut(&mut self) -> &mut State<'a, S> {
         &mut self.0
     }
@@ -188,13 +188,13 @@ impl<'a, S: PioState> DerefMut for StateGroup3<'a, S> {
 impl<'a, S: PioState> Deref for StateGroup4<'a, S> {
     type Target = State<'a, S>;
 
-    #[inline(always)]
+    #[inline]
     fn deref(&self) -> &State<'a, S> {
         &self.0
     }
 }
 impl<'a, S: PioState> DerefMut for StateGroup4<'a, S> {
-    #[inline(always)]
+    #[inline]
     fn deref_mut(&mut self) -> &mut State<'a, S> {
         &mut self.0
     }

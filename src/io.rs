@@ -21,8 +21,10 @@
 
 extern crate core;
 
-use core::fmt::{self, Debug, Formatter};
+use core::error;
+use core::fmt::{self, Debug, Display, Formatter};
 use core::marker::Sized;
+use core::option::Option::{self, None};
 use core::result::Result::{self, Err, Ok};
 
 pub enum Error<E> {
@@ -56,6 +58,21 @@ pub enum SeekFrom {
     Current(i64),
 }
 
+pub trait Read<E> {
+    fn read(&mut self, b: &mut [u8]) -> Result<usize, Error<E>>;
+
+    #[inline]
+    fn read_exact(&mut self, mut b: &mut [u8]) -> Result<(), Error<E>> {
+        while !b.is_empty() {
+            match self.read(b) {
+                Ok(0) => break,
+                Ok(n) => b = &mut b[n..],
+                Err(e) => return Err(e),
+            }
+        }
+        if b.is_empty() { Ok(()) } else { Err(Error::UnexpectedEof) }
+    }
+}
 pub trait Seek<E> {
     fn seek(&mut self, s: SeekFrom) -> Result<u64, Error<E>>;
 
@@ -69,24 +86,11 @@ pub trait Seek<E> {
         self.seek(SeekFrom::Current(0))
     }
 }
-pub trait Read<E> {
-    fn read(&mut self, b: &mut [u8]) -> Result<usize, Error<E>>;
-
-    fn read_exact(&mut self, mut b: &mut [u8]) -> Result<(), Error<E>> {
-        while !b.is_empty() {
-            match self.read(b) {
-                Ok(0) => break,
-                Ok(n) => b = &mut b[n..],
-                Err(e) => return Err(e),
-            }
-        }
-        if b.is_empty() { Ok(()) } else { Err(Error::UnexpectedEof) }
-    }
-}
 pub trait Write<E> {
     fn flush(&mut self) -> Result<(), Error<E>>;
     fn write(&mut self, b: &[u8]) -> Result<usize, Error<E>>;
 
+    #[inline]
     fn write_all(&mut self, mut b: &[u8]) -> Result<(), Error<E>> {
         while !b.is_empty() {
             match self.write(b) {
@@ -99,78 +103,88 @@ pub trait Write<E> {
     }
 
     #[cfg(feature = "debug")]
-    fn write_fmt(&mut self, fmt: core::fmt::Arguments<'_>) -> Result<(), core::fmt::Error> {
+    fn write_fmt(&mut self, v: fmt::Arguments<'_>) -> Result<(), fmt::Error> {
         struct Adapter<'a, E, T: Write<E> + ?Sized + 'a> {
             i: &'a mut T,
             e: Result<(), Error<E>>,
         }
-        impl<E, T: Write<E> + ?Sized> core::fmt::Write for Adapter<'_, E, T> {
-            fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        impl<E, T: Write<E> + ?Sized> fmt::Write for Adapter<'_, E, T> {
+            fn write_str(&mut self, s: &str) -> fmt::Result {
                 match self.i.write_all(s.as_bytes()) {
                     Ok(()) => Ok(()),
                     Err(e) => {
                         self.e = Err(e);
-                        Err(core::fmt::Error)
+                        Err(fmt::Error)
                     },
                 }
             }
         }
         let mut o = Adapter { i: self, e: Ok(()) };
-        core::fmt::write(&mut o, fmt)
+        fmt::write(&mut o, v)
     }
 }
 
 impl<E, T: ?Sized + Seek<E>> Seek<E> for &mut T {
-    #[inline(always)]
+    #[inline]
     fn seek(&mut self, p: SeekFrom) -> Result<u64, Error<E>> {
         T::seek(self, p)
     }
 }
 impl<E, T: ?Sized + Read<E>> Read<E> for &mut T {
-    #[inline(always)]
+    #[inline]
     fn read(&mut self, b: &mut [u8]) -> Result<usize, Error<E>> {
         T::read(self, b)
     }
 }
 impl<E, T: ?Sized + Write<E>> Write<E> for &mut T {
-    #[inline(always)]
+    #[inline]
     fn flush(&mut self) -> Result<(), Error<E>> {
         T::flush(self)
     }
-    #[inline(always)]
+    #[inline]
     fn write(&mut self, b: &[u8]) -> Result<usize, Error<E>> {
         T::write(self, b)
     }
 }
 
-#[cfg(feature = "debug")]
 impl<E: Debug> Debug for Error<E> {
+    #[cfg(feature = "debug")]
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Error::Read => f.write_str("Read"),
             Error::Write => f.write_str("Write"),
-            Error::Timeout => f.write_str("Timeout"),
-            Error::EndOfFile => f.write_str("EndOfFile"),
-            Error::UnexpectedEof => f.write_str("UnexpectedEof"),
             Error::NoSpace => f.write_str("NoSpace"),
+            Error::Timeout => f.write_str("Timeout"),
             Error::NotAFile => f.write_str("NotAFile"),
             Error::NotFound => f.write_str("NotFound"),
             Error::Overflow => f.write_str("Overflow"),
+            Error::EndOfFile => f.write_str("EndOfFile"),
             Error::NotReadable => f.write_str("NotReadable"),
             Error::NotWritable => f.write_str("NotWritable"),
-            Error::NotADirectory => f.write_str("NotADirectory"),
-            Error::NonEmptyDirectory => f.write_str("NonEmptyDirectory"),
             Error::InvalidIndex => f.write_str("InvalidIndex"),
+            Error::NotADirectory => f.write_str("NotADirectory"),
+            Error::UnexpectedEof => f.write_str("UnexpectedEof"),
             Error::InvalidOptions => f.write_str("InvalidOptions"),
+            Error::NonEmptyDirectory => f.write_str("NonEmptyDirectory"),
             Error::Other(v) => f.debug_tuple("Other").field(v).finish(),
         }
     }
-}
-#[cfg(not(feature = "debug"))]
-impl<E> Debug for Error<E> {
-    #[inline(always)]
+    #[cfg(not(feature = "debug"))]
+    #[inline]
     fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
         Ok(())
+    }
+}
+impl<E: Debug> Display for Error<E> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+impl<E: Debug> error::Error for Error<E> {
+    #[inline]
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        None
     }
 }

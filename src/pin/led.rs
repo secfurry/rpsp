@@ -33,56 +33,56 @@ pub struct Led(Pin<Output>);
 pub struct LedPwm(PwmPin<Output>);
 
 impl Led {
-    #[inline(always)]
+    #[inline]
     pub fn get(p: &Board, i: PinID) -> Led {
         Pin::get(p, i).into()
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn on(&self) {
         self.0.high()
     }
-    #[inline(always)]
+    #[inline]
     pub fn off(&self) {
         self.0.low()
     }
 }
 impl LedPwm {
-    #[inline(always)]
+    #[inline]
     pub fn get(p: &Board, i: PinID) -> LedPwm {
         Pin::get(p, i).into_pwm().into()
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn on(&self) {
         self.0.high()
     }
-    #[inline(always)]
+    #[inline]
     pub fn off(&self) {
         self.0.low()
     }
-    #[inline(always)]
+    #[inline]
     pub fn brightness(&self, p: u8) {
-        self.0.set_duty((self.0.get_max_duty() / 100u16) * (p as u16))
+        self.0.set_duty((self.0.get_max_duty() / 100) * (p as u16))
     }
 }
 
 impl Deref for Led {
     type Target = Pin<Output>;
 
-    #[inline(always)]
+    #[inline]
     fn deref(&self) -> &Pin<Output> {
         &self.0
     }
 }
 impl DerefMut for Led {
-    #[inline(always)]
+    #[inline]
     fn deref_mut(&mut self) -> &mut Pin<Output> {
         &mut self.0
     }
 }
 impl From<Pin<Output>> for Led {
-    #[inline(always)]
+    #[inline]
     fn from(v: Pin<Output>) -> Led {
         Led(v)
     }
@@ -91,19 +91,19 @@ impl From<Pin<Output>> for Led {
 impl Deref for LedPwm {
     type Target = PwmPin<Output>;
 
-    #[inline(always)]
+    #[inline]
     fn deref(&self) -> &PwmPin<Output> {
         &self.0
     }
 }
 impl DerefMut for LedPwm {
-    #[inline(always)]
+    #[inline]
     fn deref_mut(&mut self) -> &mut PwmPin<Output> {
         &mut self.0
     }
 }
 impl From<PwmPin<Output>> for LedPwm {
-    #[inline(always)]
+    #[inline]
     fn from(v: PwmPin<Output>) -> LedPwm {
         LedPwm(v)
     }

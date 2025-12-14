@@ -53,13 +53,13 @@ impl Cyw43 {
         let (mut f, mut d, mut r) = (1u32, 0u32, 50_000_000u32);
         // Find a nice target frequency around ~50MHz.
         while r >= FREQ {
-            r = m / (f + (d / 0x100u32));
+            r = m / (f + (d / 0x100));
             if r == FREQ {
                 d += 1;
             } else {
                 f += 1;
             }
-            if f > 0xFFFFu32 || d > 0xFFu32 {
+            if f > 0xFFFF || d > 0xFF {
                 return Err(CywError::InvalidFrequency);
             }
         }
@@ -74,7 +74,7 @@ impl Cyw43 {
             0xC000, //  7: irq    nowait 0   side 0
         ]);
         let mut v = Pio::get(p, PioID::Pio0);
-        let i = v.install(&c).map_err(|_| CywError::Code)?;
+        let i = v.install(&c).or(Err(CywError::Code))?;
         let mut s = Config::new_program(&i)
             .sideset_pin(PinID::Pin29)
             .output_pin(PinID::Pin24)
@@ -91,7 +91,7 @@ impl Cyw43 {
             dev: Device::new(p, i.offset(), s, PinID::Pin23, PinID::Pin25),
         })
     }
-    #[inline(always)]
+    #[inline]
     pub fn create(p: &Board, offset: u8, sm: State<'_, Stopped>, pwr: PinID, cs: PinID) -> Cyw43 {
         Cyw43 {
             dev: Device::new(p, offset, sm, pwr, cs),

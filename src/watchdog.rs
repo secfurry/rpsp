@@ -22,7 +22,7 @@
 extern crate core;
 
 use core::cell::UnsafeCell;
-use core::cmp;
+use core::cmp::Ord;
 
 use crate::pac::{PSM, WATCHDOG};
 
@@ -46,7 +46,7 @@ impl Watchdog {
     #[inline]
     pub(crate) fn new(freq: u32) -> Watchdog {
         let w = unsafe { WATCHDOG::steal() };
-        w.tick().write(|r| unsafe { r.bits(cmp::min(freq / 1_000_000, 0xFF)) });
+        w.tick().write(|r| unsafe { r.bits((freq / 1_000_000).min(0xFF)) });
         Watchdog {
             dog:   w,
             value: UnsafeCell::new(0u32),
@@ -57,7 +57,7 @@ impl Watchdog {
     pub fn feed(&self) {
         self.dog.load().write(|r| unsafe { r.bits(*self.value.get()) });
     }
-    #[inline(always)]
+    #[inline]
     pub fn ping(&self) {
         self.feed();
     }
@@ -69,7 +69,7 @@ impl Watchdog {
     pub fn enable_ticks(&self) {
         self.dog.tick().modify(|v, r| unsafe { r.bits(0x200 | v.bits()) })
     }
-    #[inline(always)]
+    #[inline]
     pub fn start(&self, ms: u32) {
         self.start_us(ms * 1_000);
     }
@@ -77,12 +77,12 @@ impl Watchdog {
     pub fn countdown(&self) -> u16 {
         self.dog.tick().read().cycles().bits()
     }
-    #[inline(always)]
+    #[inline]
     pub fn restart(&self, ms: u32) {
         self.restart_us(ms * 1_000)
     }
     pub fn start_us(&self, us: u32) {
-        let d = cmp::min(us, 0x7FFFFF);
+        let d = us.min(0x7FFFFF);
         self.dog.ctrl().write(|r| r.enable().clear_bit());
         unsafe {
             PSM::steal()

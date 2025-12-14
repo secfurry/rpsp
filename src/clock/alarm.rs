@@ -47,8 +47,7 @@ pub struct Alarm {
 impl Alarm {
     #[inline]
     pub fn new(p: &Board, a: AlarmID) -> Alarm {
-        // NOTE(sf): Make sure the Watchdog is ticking.
-        p.enable_ticks();
+        p.enable_ticks(); // Make sure the Watchdog is ticking.
         Alarm {
             i:   a,
             dev: unsafe { TIMER::steal() },
@@ -65,7 +64,7 @@ impl Alarm {
     pub fn done(&self) -> bool {
         self.dev.armed().read().bits() & (self.i as u32) == 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn id(&self) -> &AlarmID {
         &self.i
     }
@@ -87,19 +86,19 @@ impl Alarm {
                 self.dev.timerawh().read().bits(),
             );
             if v == h {
-                return ((h as u64) << 32) | l as u64;
+                return unsafe { (h as u64).unchecked_shl(32) | l as u64 };
             }
             v = h;
         }
     }
-    #[inline(always)]
+    #[inline]
     pub fn schedule(&mut self, ms: u32) {
         self.schedule_us(ms * 1_000);
     }
     pub fn schedule_us(&mut self, us: u32) {
         let v = self.current_tick() + us as u64;
         let l = (v & 0xFFFFFFFF) as u32;
-        // NOTE(sf): Run without Interrupts
+        // Run without Interrupts
         free(|_| {
             match &self.i {
                 AlarmID::Alarm0 => unsafe { self.dev.alarm0().write(|r| r.bits(l)) },
@@ -115,7 +114,7 @@ impl Alarm {
             write_reg(self.dev.intf().as_ptr(), i, false);
         })
     }
-    #[inline(always)]
+    #[inline]
     pub fn interrupt_set(&mut self, en: bool) {
         write_reg(self.dev.inte().as_ptr(), self.i as u32, !en)
     }
@@ -123,7 +122,7 @@ impl Alarm {
 
 impl Copy for AlarmID {}
 impl Clone for AlarmID {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> AlarmID {
         *self
     }

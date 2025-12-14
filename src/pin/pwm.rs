@@ -70,43 +70,43 @@ pub type PwmOutput = PwmPin<Output>;
 struct PwmState(UnsafeCell<(u16, bool)>);
 
 impl PwmState {
-    #[inline(always)]
+    #[inline]
     fn new() -> PwmState {
         PwmState(UnsafeCell::new((0, true)))
     }
 
-    #[inline(always)]
+    #[inline]
     fn value(&self) -> u16 {
         unsafe { &*self.0.get() }.0
     }
-    #[inline(always)]
+    #[inline]
     fn enabled(&self) -> bool {
         unsafe { &*self.0.get() }.1
     }
-    #[inline(always)]
+    #[inline]
     fn set_value(&self, v: u16) {
         unsafe { (&mut *self.0.get()).0 = v }
     }
-    #[inline(always)]
+    #[inline]
     fn set_enabled(&self, v: bool) {
         unsafe { (&mut *self.0.get()).1 = v }
     }
 }
 
 impl PwmID {
-    #[inline(always)]
+    #[inline]
     pub(super) fn is_b(&self) -> bool {
-        ((*self as u8) >> 4) == 1
+        unsafe { (*self as u8).unchecked_shr(4) == 1 }
     }
     #[inline]
     pub(super) fn set_defaults(&self) {
         self.set_phase_correct(true);
-        self.set_div_int(1u8);
-        self.set_div_frac(0u8);
+        self.set_div_int(1);
+        self.set_div_frac(0);
         self.set_inv(false, true);
-        self.set_top(0xFFFEu16);
-        self.set_counter(0u16);
-        self.set_duty(0u16, true);
+        self.set_top(0xFFFE);
+        self.set_counter(0);
+        self.set_duty(0, true);
         self.set_state(false);
     }
     #[inline]
@@ -115,16 +115,20 @@ impl PwmID {
     }
 
     #[inline]
+    fn reg(&self) -> &CH {
+        unsafe { (*PWM::ptr()).ch((*self as usize) & 0xF) }
+    }
+    #[inline]
     fn interrupt_clear(&self) {
-        unsafe { (*PWM::ptr()).intr().write(|r| r.bits(1 << (*self as usize) & 0xF)) }
+        unsafe {
+            (*PWM::ptr())
+                .intr()
+                .write(|r| r.bits(1u32.unchecked_shl(*self as u32 & 0xF)))
+        }
     }
     #[inline]
     fn set_top(&self, v: u16) {
         self.reg().top().write(|r| unsafe { r.top().bits(v) })
-    }
-    #[inline]
-    fn reg<'a>(&self) -> &'a CH {
-        unsafe { (*PWM::ptr()).ch((*self as usize) & 0xF) }
     }
     #[inline]
     fn set_div_int(&self, v: u8) {
@@ -140,16 +144,20 @@ impl PwmID {
     }
     #[inline]
     fn is_overflown(&self) -> bool {
-        let v = 1 << ((*self as u32) & 0xF);
-        unsafe { (*PWM::ptr()).intr().read().bits() & v == v }
+        unsafe {
+            let v = 1u32.unchecked_shl(*self as u32 & 0xF);
+            (*PWM::ptr()).intr().read().bits() & v == v
+        }
     }
-    #[inline(always)]
+    #[inline]
     fn interrupt_set(&self, en: bool) {
-        write_reg(
-            unsafe { (&*PWM::ptr()).inte().as_ptr() },
-            1 << ((*self as u32) & 0xF),
-            !en,
-        )
+        unsafe {
+            write_reg(
+                (&*PWM::ptr()).inte().as_ptr(),
+                1u32.unchecked_shl(*self as u32 & 0xF),
+                !en,
+            )
+        }
     }
     #[inline]
     fn set_phase_correct(&self, en: bool) {
@@ -177,11 +185,11 @@ impl PwmID {
     }
 }
 impl PwmPin<Output> {
-    #[inline(always)]
+    #[inline]
     pub fn low(&self) {
         self.set_duty(0)
     }
-    #[inline(always)]
+    #[inline]
     pub fn high(&self) {
         self.set_duty(self.get_max_duty())
     }
@@ -195,7 +203,7 @@ impl PwmPin<Output> {
     }
 }
 impl<F: PinIO> PwmPin<F> {
-    #[inline(always)]
+    #[inline]
     pub(super) fn new(i: PwmID) -> PwmPin<F> {
         PwmPin {
             i,
@@ -204,11 +212,11 @@ impl<F: PinIO> PwmPin<F> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn id(&self) -> &PwmID {
         &self.i
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_top(&self, v: u16) {
         self.i.set_top(v)
     }
@@ -224,7 +232,7 @@ impl<F: PinIO> PwmPin<F> {
             _ => self.s.value(),
         }
     }
-    #[inline(always)]
+    #[inline]
     pub fn interrupt_clear(&self) {
         self.i.interrupt_clear()
     }
@@ -236,7 +244,7 @@ impl<F: PinIO> PwmPin<F> {
         }
         self.i.set_duty(v, false)
     }
-    #[inline(always)]
+    #[inline]
     pub fn get_state(&self) -> bool {
         self.s.enabled()
     }
@@ -244,19 +252,19 @@ impl<F: PinIO> PwmPin<F> {
     pub fn get_counter(&self) -> u16 {
         self.i.reg().ctr().read().ctr().bits()
     }
-    #[inline(always)]
+    #[inline]
     pub fn is_enabled(&self) -> bool {
         self.s.enabled()
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_div_int(&self, v: u8) {
         self.i.set_div_int(v)
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_div_frac(&self, v: u8) {
         self.i.set_div_frac(v)
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_counter(&self, v: u16) {
         self.i.set_counter(v)
     }
@@ -275,7 +283,7 @@ impl<F: PinIO> PwmPin<F> {
             self.s.set_enabled(false)
         }
     }
-    #[inline(always)]
+    #[inline]
     pub fn is_overflown(&self) -> bool {
         self.i.is_overflown()
     }
@@ -283,15 +291,15 @@ impl<F: PinIO> PwmPin<F> {
     pub fn set_mode(&self, m: PwmMode) {
         self.i.reg().csr().modify(|_, r| r.divmode().bits(m as _))
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_inverted(&self, inv: bool) {
         self.i.set_inv(inv, false)
     }
-    #[inline(always)]
+    #[inline]
     pub fn interrupt_set(&self, en: bool) {
         self.i.interrupt_set(en)
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_phase_correct(&self, en: bool) {
         self.i.set_phase_correct(en)
     }
@@ -299,7 +307,7 @@ impl<F: PinIO> PwmPin<F> {
 
 impl Copy for PwmID {}
 impl Clone for PwmID {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> PwmID {
         *self
     }

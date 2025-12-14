@@ -35,7 +35,7 @@ directory and updates the `src/pin/boards/lib.rs` with all the tags and modules.
 The text format is pretty simple, it takes the Pin number and it's capabilities
 for each line.
 
-Documentation is listed [here](boards/README.md).
+Documentation is [listed here](boards/README.md).
 
 ## Note
 
@@ -287,4 +287,4 @@ Theres alot of more examples I need to add..
 - CYW Driver
   - Networking??
 
-License for the CYW driver is [here](src/cyw/firmware/LICENSE-permissive-binary-license-1.0.txt)
+License for the CYW driver is [located here](src/cyw/firmware/LICENSE-permissive-binary-license-1.0.txt)

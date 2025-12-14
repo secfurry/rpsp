@@ -80,30 +80,30 @@ pub type I2cController = I2c<Controller>;
 pub type I2cPeripheral = I2c<Peripheral>;
 
 impl I2cAddress {
-    #[inline(always)]
+    #[inline]
     pub const fn new_7bit(v: u8) -> I2cAddress {
         I2cAddress(v as u16 | 0x8000u16)
     }
-    #[inline(always)]
+    #[inline]
     pub const fn new_10bit(v: u16) -> I2cAddress {
         I2cAddress(v & 0x7FFFu16)
     }
 
     #[inline]
     pub fn value(&self) -> u16 {
-        self.0 & 0x7FFFu16
+        self.0 & 0x7FFF
     }
     #[inline]
     pub fn is_valid(&self) -> bool {
-        self.is_10bit() || ((self.0 & 0x7FFFu16) < 0x80u16)
+        self.is_10bit() || ((self.0 & 0x7FFF) < 0x80)
     }
     #[inline]
     pub fn is_10bit(&self) -> bool {
-        self.0 & 0x8000u16 == 0
+        self.0 & 0x8000 == 0
     }
 }
 impl I2c<Peripheral> {
-    #[inline(always)]
+    #[inline]
     pub fn new(p: &Board, sda: PinID, scl: PinID, addr: I2cAddress) -> Result<I2c<Peripheral>, I2cError> {
         I2cPeripheral::new_peripheral(p, sda, scl, addr)
     }
@@ -112,7 +112,7 @@ impl I2c<Peripheral> {
         let d = self.ptr();
         let _ = d.ic_clr_tx_abrt().read();
         let mut n = 0usize;
-        for i in b {
+        for i in b.iter() {
             if self.tx_is_full() {
                 break;
             }
@@ -160,11 +160,7 @@ impl I2c<Peripheral> {
     }
     #[inline]
     pub fn read_single(&mut self) -> Option<u8> {
-        if self.rx_is_empty() {
-            return None;
-        } else {
-            Some(self.ptr().ic_data_cmd().read().dat().bits())
-        }
+        if self.rx_is_empty() { None } else { Some(self.ptr().ic_data_cmd().read().dat().bits()) }
     }
     pub fn read(&mut self, b: &mut [u8]) -> usize {
         let d = self.ptr();
@@ -192,7 +188,7 @@ impl I2c<Peripheral> {
 impl I2c<Controller> {
     pub const DEFAULT_FREQ: u32 = 400_000u32;
 
-    #[inline(always)]
+    #[inline]
     pub fn new(p: &Board, sda: PinID, scl: PinID, freq: u32) -> Result<I2c<Controller>, I2cError> {
         I2cController::new_controller(p, sda, scl, freq)
     }
@@ -205,12 +201,12 @@ impl I2c<Controller> {
     #[inline]
     pub fn write(&mut self, addr: I2cAddress, b: &[u8]) -> Result<usize, I2cError> {
         self.prepare(addr)?;
-        self.write_raw(true, true, b)
+        self.write_raw(true, b)
     }
     #[inline]
     pub fn write_single(&mut self, addr: I2cAddress, v: u8) -> Result<(), I2cError> {
         self.prepare(addr)?;
-        self.write_raw_single(true, true, v)
+        self.write_raw_single(true, v)
     }
     #[inline]
     pub fn read(&mut self, addr: I2cAddress, b: &mut [u8]) -> Result<usize, I2cError> {
@@ -220,20 +216,20 @@ impl I2c<Controller> {
     #[inline]
     pub fn write_then_read_single(&mut self, addr: I2cAddress, b: &[u8]) -> Result<u8, I2cError> {
         self.prepare(addr)?;
-        self.write_raw(true, false, b)?;
+        self.write_raw(false, b)?;
         self.read_raw_single(true, true)
     }
     #[inline]
     pub fn transfer(&mut self, addr: I2cAddress, input: &[u8], out: &mut [u8]) -> Result<(), I2cError> {
         self.prepare(addr)?;
-        self.write_raw(true, false, input)?;
+        self.write_raw(false, input)?;
         self.read_raw(false, true, out)?;
         Ok(())
     }
     #[inline]
     pub fn write_single_then_read(&mut self, addr: I2cAddress, v: u8, out: &mut [u8]) -> Result<usize, I2cError> {
         self.prepare(addr)?;
-        self.write_raw_single(true, false, v)?;
+        self.write_raw_single(false, v)?;
         self.read_raw(false, true, out)
     }
 
@@ -274,6 +270,43 @@ impl I2c<Controller> {
         d.ic_enable().write(|r| r.enable().enabled());
         Ok(())
     }
+    fn write_raw(&self, stop: bool, b: &[u8]) -> Result<usize, I2cError> {
+        if b.is_empty() {
+            self.reset();
+            return Ok(0);
+        }
+        let (d, mut e) = (self.ptr(), 0u32);
+        for (i, v) in b.iter().enumerate() {
+            e = self.check_errors();
+            if e > 0 {
+                break;
+            }
+            while self.tx_is_full() {
+                nop();
+            }
+            d.ic_data_cmd().write(|r| {
+                if i == 0 {
+                    r.restart().enable();
+                }
+                unsafe { r.stop().bit(stop && i + 1 >= b.len()).dat().bits(*v) }
+            });
+        }
+        self.check_errors_spin(stop, e)?;
+        Ok(b.len())
+    }
+    fn write_raw_single(&self, stop: bool, v: u8) -> Result<(), I2cError> {
+        let e = self.check_errors();
+        if e > 0 {
+            return self.check_errors_spin(stop, e);
+        }
+        while self.tx_is_full() {
+            nop();
+        }
+        let d = self.ptr();
+        d.ic_data_cmd()
+            .write(|r| unsafe { r.restart().enable().stop().bit(stop).dat().bits(v) });
+        self.check_errors_spin(stop, 0)
+    }
     fn read_raw_single(&self, init: bool, stop: bool) -> Result<u8, I2cError> {
         while self.tx_is_full() {
             nop();
@@ -307,49 +340,6 @@ impl I2c<Controller> {
         }
         if e > 0 { Err(abort_type(e)) } else { Ok(()) }
     }
-    fn write_raw(&self, init: bool, stop: bool, b: &[u8]) -> Result<usize, I2cError> {
-        if b.is_empty() {
-            self.reset();
-            return Ok(0);
-        }
-        let (d, mut e) = (self.ptr(), 0u32);
-        for (i, v) in b.iter().enumerate() {
-            e = self.check_errors();
-            if e > 0 {
-                break;
-            }
-            while self.tx_is_full() {
-                nop();
-            }
-            d.ic_data_cmd().write(|r| {
-                if i == 0 && !init {
-                    r.restart().enable();
-                }
-                r.stop().bit(stop && i + 1 >= b.len());
-                unsafe { r.dat().bits(*v) }
-            });
-        }
-        self.check_errors_spin(stop, e)?;
-        Ok(b.len())
-    }
-    fn write_raw_single(&self, init: bool, stop: bool, v: u8) -> Result<(), I2cError> {
-        let e = self.check_errors();
-        if e > 0 {
-            return self.check_errors_spin(stop, e);
-        }
-        while self.tx_is_full() {
-            nop();
-        }
-        let d = self.ptr();
-        d.ic_data_cmd().write(|r| {
-            if !init {
-                r.restart().enable();
-            }
-            r.stop().bit(stop);
-            unsafe { r.dat().bits(v) }
-        });
-        self.check_errors_spin(stop, 0)
-    }
     fn read_raw(&self, init: bool, stop: bool, b: &mut [u8]) -> Result<usize, I2cError> {
         if b.is_empty() {
             self.reset();
@@ -376,7 +366,7 @@ impl I2c<Controller> {
 }
 impl<M: I2cMode> I2c<M> {
     pub fn new_controller(p: &Board, sda: PinID, scl: PinID, freq: u32) -> Result<I2c<Controller>, I2cError> {
-        if freq > 1_000_000 {
+        if freq > 1_000_000 || freq == 0 {
             return Err(I2cError::InvalidFrequency);
         }
         let s = p.system_freq();
@@ -437,7 +427,7 @@ impl<M: I2cMode> I2c<M> {
             x.ic_fs_scl_hcnt().write(|r| r.ic_fs_scl_hcnt().bits(h as u16));
             x.ic_fs_scl_lcnt().write(|r| r.ic_fs_scl_lcnt().bits(l as u16));
             x.ic_fs_spklen()
-                .write(|r| r.ic_fs_spklen().bits(if l < 0x10 { 1u8 } else { (l / 0x10) as u8 }));
+                .write(|r| r.ic_fs_spklen().bits(if l < 0x10 { 1 } else { (l / 0x10) as u8 }));
             x.ic_sda_hold().modify(|_, r| r.ic_sda_tx_hold().bits(c as u16));
             x.ic_tx_tl().write(|r| r.tx_tl().bits(0x10));
             x.ic_rx_tl().write(|r| r.rx_tl().bits(0));
@@ -536,7 +526,7 @@ impl<M: I2cMode> I2c<M> {
     pub fn tx_used(&self) -> u8 {
         self.ptr().ic_txflr().read().txflr().bits()
     }
-    #[inline(always)]
+    #[inline]
     pub fn tx_available(&self) -> u8 {
         0x10u8.saturating_sub(self.tx_used())
     }
@@ -544,7 +534,7 @@ impl<M: I2cMode> I2c<M> {
     pub fn tx_is_full(&self) -> bool {
         self.ptr().ic_status().read().tfnf().bit_is_clear()
     }
-    #[inline(always)]
+    #[inline]
     pub fn rx_available(&self) -> u8 {
         0x10u8.saturating_sub(self.rx_used())
     }
@@ -556,12 +546,12 @@ impl<M: I2cMode> I2c<M> {
     pub fn rx_is_empty(&self) -> bool {
         self.ptr().ic_status().read().rfne().bit_is_clear()
     }
-    #[inline(always)]
+    #[inline]
     pub fn is_controller(&self) -> bool {
         M::CONTROLLER
     }
 
-    #[inline(always)]
+    #[inline]
     fn ptr(&self) -> &RegisterBlock {
         unsafe { self.dev.as_ref() }
     }
@@ -585,7 +575,7 @@ impl I2cMode for Peripheral {
 impl Iterator for I2c<Peripheral> {
     type Item = I2cEvent;
 
-    #[inline(always)]
+    #[inline]
     fn next(&mut self) -> Option<I2cEvent> {
         self.event()
     }
@@ -594,7 +584,7 @@ impl Iterator for I2c<Peripheral> {
 impl<M: I2cMode> Deref for I2cBus<'_, M> {
     type Target = I2c<M>;
 
-    #[inline(always)]
+    #[inline]
     fn deref(&self) -> &I2c<M> {
         match self {
             I2cBus::Owned(v) => &v,
@@ -604,7 +594,7 @@ impl<M: I2cMode> Deref for I2cBus<'_, M> {
     }
 }
 impl<M: I2cMode> DerefMut for I2cBus<'_, M> {
-    #[inline(always)]
+    #[inline]
     fn deref_mut(&mut self) -> &mut I2c<M> {
         match self {
             I2cBus::Owned(v) => v,
@@ -614,13 +604,13 @@ impl<M: I2cMode> DerefMut for I2cBus<'_, M> {
     }
 }
 impl<'a, M: I2cMode> From<I2c<M>> for I2cBus<'a, M> {
-    #[inline(always)]
+    #[inline]
     fn from(v: I2c<M>) -> I2cBus<'a, M> {
         I2cBus::Owned(v)
     }
 }
 impl<'a, M: I2cMode> From<&'a I2c<M>> for I2cBus<'a, M> {
-    #[inline(always)]
+    #[inline]
     fn from(v: &'a I2c<M>) -> I2cBus<'a, M> {
         I2cBus::Duplicated((
             I2c {
@@ -632,20 +622,20 @@ impl<'a, M: I2cMode> From<&'a I2c<M>> for I2cBus<'a, M> {
     }
 }
 impl<'a, M: I2cMode> From<&'a mut I2c<M>> for I2cBus<'a, M> {
-    #[inline(always)]
+    #[inline]
     fn from(v: &'a mut I2c<M>) -> I2cBus<'a, M> {
         I2cBus::Shared(v)
     }
 }
 
 impl From<u8> for I2cAddress {
-    #[inline(always)]
+    #[inline]
     fn from(v: u8) -> I2cAddress {
         I2cAddress::new_7bit(v)
     }
 }
 impl From<u16> for I2cAddress {
-    #[inline(always)]
+    #[inline]
     fn from(v: u16) -> I2cAddress {
         I2cAddress::new_10bit(v)
     }
@@ -653,8 +643,8 @@ impl From<u16> for I2cAddress {
 
 unsafe impl<M: I2cMode> Send for I2c<M> {}
 
-#[cfg(feature = "debug")]
 impl Debug for I2cError {
+    #[cfg(feature = "debug")]
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -672,10 +662,8 @@ impl Debug for I2cError {
             I2cError::AbortNoAckAddress => f.write_str("AbortNoAckAddress"),
         }
     }
-}
-#[cfg(not(feature = "debug"))]
-impl Debug for I2cError {
-    #[inline(always)]
+    #[cfg(not(feature = "debug"))]
+    #[inline]
     fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
         Ok(())
     }
@@ -712,20 +700,20 @@ pub mod mode {
 
     impl Copy for State {}
     impl Clone for State {
-        #[inline(always)]
+        #[inline]
         fn clone(&self) -> State {
             *self
         }
     }
 
     impl Clone for Controller {
-        #[inline(always)]
+        #[inline]
         fn clone(&self) -> Controller {
             Controller
         }
     }
     impl Clone for Peripheral {
-        #[inline(always)]
+        #[inline]
         fn clone(&self) -> Peripheral {
             Peripheral { state: self.state }
         }

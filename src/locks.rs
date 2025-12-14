@@ -21,6 +21,7 @@
 
 extern crate core;
 
+use core::iter::Iterator;
 use core::marker::PhantomData;
 use core::ops::Drop;
 use core::option::Option::{self, None, Some};
@@ -73,6 +74,7 @@ impl<const N: u8> Spinlock<N> {
         }
         Spinlock(PhantomData)
     }
+    #[inline]
     pub fn try_claim() -> Option<Spinlock<N>> {
         let p = unsafe { SIO::steal() };
         if p.spinlock(N as usize).read().bits() > 0 { Some(Spinlock(PhantomData)) } else { None }
@@ -100,8 +102,8 @@ impl<const N: u8> Drop for Spinlock<N> {
 pub fn spinlock_state() -> [bool; 32] {
     let mut r = [false; 32];
     let v = unsafe { SIO::steal() }.spinlock_st().read().bits();
-    for i in 0..32 {
-        r[i] = (v & (1 << i)) > 0;
+    for (i, d) in r.iter_mut().enumerate() {
+        *d = unsafe { v & 1u32.unchecked_shl(i as u32) } > 0;
     }
     r
 }

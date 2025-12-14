@@ -55,13 +55,13 @@ impl Device {
         Device {
             offset,
             t: p.timer().clone(),
-            tx: m.tx_u32(),
-            rx: m.rx_u32(),
             bp: 0u32,
             cs: Pin::get(&p, PinID::Pin25).output(true),
+            rx: m.rx_u32(),
+            sm: m,
+            tx: m.tx_u32(),
             pwr: Pin::get(&p, PinID::Pin23).output(false),
             status: 0u32,
-            sm: m,
         }
     }
 
@@ -113,35 +113,35 @@ impl Device {
         }
         self.bp = v
     }
-    #[inline(always)]
+    #[inline]
     pub fn write_wlan(&mut self, b: &[u32]) {
         self.cmd_write(0xE0000000 | (b.len() as u32 * 4), b)
     }
-    #[inline(always)]
+    #[inline]
     pub fn read_bp8(&mut self, addr: u32) -> u8 {
         self.read_bp(addr, 1) as u8
     }
-    #[inline(always)]
+    #[inline]
     pub fn read_bp16(&mut self, addr: u32) -> u16 {
         self.read_bp(addr, 2) as u16
     }
-    #[inline(always)]
+    #[inline]
     pub fn read_bp32(&mut self, addr: u32) -> u32 {
         self.read_bp(addr, 4)
     }
-    #[inline(always)]
+    #[inline]
     pub fn write_bp8(&mut self, addr: u32, v: u8) {
         self.write_bp(addr, 1, v as u32)
     }
-    #[inline(always)]
+    #[inline]
     pub fn write_bp16(&mut self, addr: u32, v: u16) {
         self.write_bp(addr, 2, v as u32)
     }
-    #[inline(always)]
+    #[inline]
     pub fn write_bp32(&mut self, addr: u32, v: u32) {
         self.write_bp(addr, 4, v)
     }
-    #[inline(always)]
+    #[inline]
     pub fn read8(&mut self, func: u32, addr: u32) -> u8 {
         self.read(func, addr, 1) as u8
     }
@@ -150,15 +150,15 @@ impl Device {
         let n = (len as usize + 3) / 4;
         self.cmd_read(0x60000000 | len, &mut b[0..n])
     }
-    #[inline(always)]
+    #[inline]
     pub fn read16(&mut self, func: u32, addr: u32) -> u16 {
         self.read(func, addr, 2) as u16
     }
-    #[inline(always)]
+    #[inline]
     pub fn read32(&mut self, func: u32, addr: u32) -> u32 {
         self.read(func, addr, 4)
     }
-    #[inline(always)]
+    #[inline]
     pub fn write8(&mut self, func: u32, addr: u32, v: u8) {
         self.write(func, addr, 1, v as u32)
     }
@@ -199,11 +199,11 @@ impl Device {
             v,
         )
     }
-    #[inline(always)]
+    #[inline]
     pub fn write16(&mut self, func: u32, addr: u32, v: u16) {
         self.write(func, addr, 2, v as u32)
     }
-    #[inline(always)]
+    #[inline]
     pub fn write32(&mut self, func: u32, addr: u32, v: u32) {
         self.write(func, addr, 4, v)
     }
@@ -234,7 +234,7 @@ impl Device {
         );
         b[0].rotate_left(0x10)
     }
-    #[inline(always)]
+    #[inline]
     pub fn write_swap32(&mut self, func: u32, addr: u32, v: u32) {
         self.cmd_write(
             (0xC0000004 | (func << 0x1C) | ((addr & 0x1FFFF) << 0xB)).rotate_left(0x10),
@@ -251,7 +251,7 @@ impl Device {
         );
         b[v - 1]
     }
-    #[inline(always)]
+    #[inline]
     pub fn write(&mut self, func: u32, addr: u32, len: u32, v: u32) {
         self.cmd_write(
             0xC0000000 | (func << 0x1C) | ((addr & 0x1FFFF) << 0xB) | len,
@@ -292,7 +292,7 @@ impl Device {
     }
 }
 
-#[inline(always)]
+#[inline]
 fn word(op: bool, inc: bool, f: u32, a: u32, n: u32) -> u32 {
     (if op { 1 } else { 0 } << 0x1F) | (if inc { 1 } else { 0 } << 0x1E) | (f) << 0x1C | ((a & 0x1FFFF) << 0xB) | (n)
 }

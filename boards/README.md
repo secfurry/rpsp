@@ -73,8 +73,8 @@ pin functions, the following values can be listed in the same line, **after** th
 - **UART1_CTS**: This pin can be used as the UART clear to send pin for UART bus 1.
 - **UART1_RTS**: This pin can be used as the UART clear to receive pin for UART bus 1.
 
-Lines that contain confliting values or multiple of the same role are invalid.
-An example of a confliting value would is `UART0_RX, UART0_TX` as the pin cannot
+Lines that contain conflicting values or multiple of the same role are invalid.
+An example of a conflicting value would is `UART0_RX, UART0_TX` as the pin cannot
 be both the transmit and receive pin for UART bus 0.
 
 The order of the pins does not matter, as they will be sorted by the pin number

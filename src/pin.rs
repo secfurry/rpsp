@@ -26,10 +26,10 @@ use core::clone::Clone;
 use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use core::convert::{From, TryFrom};
 use core::fmt::{self, Debug, Formatter};
+use core::hint::unreachable_unchecked;
 use core::marker::{Copy, PhantomData};
 use core::option::Option::{self, None, Some};
 use core::result::Result::{self, Err, Ok};
-use core::unreachable;
 
 use crate::asm::nop;
 use crate::int::Acknowledge;
@@ -112,27 +112,26 @@ pub trait PinIO {
 pub type PinInput = Pin<Input>;
 pub type PinOutput = Pin<Output>;
 
-#[allow(unused)]
 // In case any boards don't use all I2C busses.
+#[allow(unused)]
 pub(super) enum I2cID {
     I2C0,
     I2C1,
 }
-#[allow(unused)]
 // In case any boards don't use all SPI busses.
+#[allow(unused)]
 pub(super) enum SpiID {
     Spi0,
     Spi1,
 }
-#[allow(unused)]
 // In case any boards don't use all UART busses.
+#[allow(unused)]
 pub(super) enum UartID {
     Uart0,
     Uart1,
 }
 
 impl PinID {
-    #[inline]
     pub(super) fn set_pio(&self, pio0: bool) {
         let v = unsafe { &*IO_BANK0::PTR }
             .gpio(*self as usize)
@@ -188,15 +187,15 @@ impl PinID {
         self.ctrl().modify(|_, r| r.ie().bit(f as u8 != 0x1F))
     }
 
-    #[inline(always)]
+    #[inline]
     fn mask(&self) -> u32 {
-        1 << (*self as u32)
+        unsafe { 1u32.unchecked_shl(*self as u32) }
     }
-    #[inline(always)]
+    #[inline]
     fn is_odd(&self) -> bool {
         (*self as u8) % 2 != 0
     }
-    #[inline(always)]
+    #[inline]
     fn offset(&self) -> usize {
         (*self as usize) % 8 * 4
     }
@@ -216,23 +215,26 @@ impl PinID {
     fn ctrl<'a>(&self) -> &'a GPIO {
         unsafe { &*PADS_BANK0::PTR }.gpio(*self as usize)
     }
+    #[inline]
     fn inter_set(&self, i: PinInterrupt, en: bool) {
         let (p, n) = (unsafe { &*IO_BANK0::PTR }, (*self as usize) / 8);
         write_reg(
             if on_core0() { p.proc0_inte(n).as_ptr() } else { p.proc1_inte(n).as_ptr() },
-            (i as u32) << self.offset(),
+            unsafe { (i as u32).unchecked_shl(self.offset() as u32) },
             !en,
         )
     }
+    #[inline]
     fn inter_status(&self, i: PinInterrupt) -> bool {
         let (p, n) = (unsafe { &*IO_BANK0::PTR }, (*self as usize) / 8);
-        let r = if on_core0() { p.proc0_ints(n).read().bits() } else { p.proc1_ints(n).read().bits() } >> self.offset();
+        let r = unsafe { (if on_core0() { p.proc0_ints(n).read().bits() } else { p.proc1_ints(n).read().bits() }).unchecked_shr(self.offset() as u32) };
         let m = i as u32;
         r & m == m
     }
+    #[inline]
     fn inter_enabled(&self, i: PinInterrupt) -> bool {
         let (p, n) = (unsafe { &*IO_BANK0::PTR }, (*self as usize) / 8);
-        let r = if on_core0() { p.proc0_inte(n).read().bits() } else { p.proc1_inte(n).read().bits() } >> self.offset();
+        let r = unsafe { (if on_core0() { p.proc0_inte(n).read().bits() } else { p.proc1_inte(n).read().bits() }).unchecked_shr(self.offset() as u32) };
         let m = i as u32;
         r & m == m
     }
@@ -241,23 +243,37 @@ impl PinID {
         let p = unsafe { &*IO_BANK0::PTR };
         write_reg(
             p.dormant_wake_inte((*self as usize) / 8).as_ptr(),
-            (i as u32) << self.offset(),
+            unsafe { (i as u32).unchecked_shl(self.offset() as u32) },
             !en,
         )
     }
     #[inline]
     fn dorm_wake_status(&self, i: PinInterrupt) -> bool {
         let (p, m) = (unsafe { &*IO_BANK0::PTR }, i as u32);
-        (p.dormant_wake_ints((*self as usize) / 8).read().bits() >> self.offset()) & m == m
+        unsafe {
+            p.dormant_wake_ints((*self as usize) / 8)
+                .read()
+                .bits()
+                .unchecked_shr(self.offset() as u32)
+                & m
+                == m
+        }
     }
     #[inline]
     fn dorm_wake_enabled(&self, i: PinInterrupt) -> bool {
         let (p, m) = (unsafe { &*IO_BANK0::PTR }, i as u32);
-        (p.dormant_wake_inte((*self as usize) / 8).read().bits() >> self.offset()) & m == m
+        unsafe {
+            p.dormant_wake_inte((*self as usize) / 8)
+                .read()
+                .bits()
+                .unchecked_shr(self.offset() as u32)
+                & m
+                == m
+        }
     }
 }
 impl PinPull {
-    #[inline(always)]
+    #[inline]
     fn sets(&self) -> (bool, bool) {
         match self {
             PinPull::Up => (true, false),
@@ -271,7 +287,7 @@ impl Pin<Input> {
     pub fn is_low(&self) -> bool {
         unsafe { &*SIO::PTR }.gpio_in().read().bits() & self.i.mask() == 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn is_high(&self) -> bool {
         !self.is_low()
     }
@@ -357,7 +373,7 @@ impl Pin<Output> {
     pub fn is_set_low(&self) -> bool {
         unsafe { &*SIO::PTR }.gpio_out().read().bits() & self.i.mask() == 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn is_set_high(&self) -> bool {
         !self.is_set_low()
     }
@@ -365,13 +381,14 @@ impl Pin<Output> {
     pub fn set_state(&self, en: bool) {
         self.i.ctrl().modify(|_, r| r.od().bit(!en))
     }
-    #[inline(always)]
+    #[inline]
     pub fn into_input(self) -> Pin<Input> {
         Pin {
             i:  self.i.into_input(),
             _p: PhantomData,
         }
     }
+    #[inline]
     pub fn into_pwm(self) -> PwmPin<Output> {
         let i = pins_pwm(&self.i);
         self.i.set_function(PinFunction::Pwm);
@@ -394,7 +411,7 @@ impl Pin<Output> {
     }
 }
 impl<F: PinIO> Pin<F> {
-    #[inline(always)]
+    #[inline]
     pub fn id(&self) -> &PinID {
         &self.i
     }
@@ -428,7 +445,7 @@ impl<F: PinIO> Pin<F> {
         let i = self.i.mask();
         unsafe { SYSCFG::steal() }.proc_in_sync_bypass().read().bits() & i == i
     }
-    #[inline(always)]
+    #[inline]
     pub fn is_pwm_avaliable(&self) -> bool {
         !F::INPUT || (F::INPUT && self.i.is_odd())
     }
@@ -442,7 +459,7 @@ impl<F: PinIO> Pin<F> {
         let (x, y) = p.sets();
         self.i.ctrl().modify(|_, r| r.pue().bit(x).pde().bit(y))
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_drive(&self, s: PinStrength) {
         self.i.ctrl().modify(|_, r| r.drive().bits(s as _));
     }
@@ -453,10 +470,10 @@ impl<F: PinIO> Pin<F> {
             1 => PinStrength::Drive4ma,
             2 => PinStrength::Drive8ma,
             3 => PinStrength::Drive12ma,
-            _ => unreachable!(),
+            _ => unsafe { unreachable_unchecked() }, // It's 2 bits, can't hit this.
         }
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_function(&self, f: PinFunction) {
         self.i.set_function(f)
     }
@@ -464,29 +481,29 @@ impl<F: PinIO> Pin<F> {
     pub fn interrupt_clear(&self, i: PinInterrupt) {
         unsafe { &*IO_BANK0::PTR }
             .intr((self.i as usize) / 8)
-            .write(|r| unsafe { r.bits((i as u32) << self.i.offset()) })
+            .write(|r| unsafe { r.bits((i as u32).unchecked_shl(self.i.offset() as u32)) })
     }
-    #[inline(always)]
+    #[inline]
     pub fn interrupt_set(&self, i: PinInterrupt, en: bool) {
         self.i.inter_set(i, en)
     }
-    #[inline(always)]
+    #[inline]
     pub fn interrupt_status(&self, i: PinInterrupt) -> bool {
         self.i.inter_status(i)
     }
-    #[inline(always)]
+    #[inline]
     pub fn interrupt_enabled(&self, i: PinInterrupt) -> bool {
         self.i.inter_enabled(i)
     }
-    #[inline(always)]
+    #[inline]
     pub fn dormant_wake_set(&self, i: PinInterrupt, en: bool) {
         self.i.dorm_wake_set(i, en)
     }
-    #[inline(always)]
+    #[inline]
     pub fn dormant_wake_status(&self, i: PinInterrupt) -> bool {
         self.i.dorm_wake_status(i)
     }
-    #[inline(always)]
+    #[inline]
     pub fn dormant_wake_enabled(&self, i: PinInterrupt) -> bool {
         self.i.dorm_wake_enabled(i)
     }
@@ -509,7 +526,7 @@ impl PinIO for Output {
 }
 
 impl<F: PinIO> Clone for Pin<F> {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Pin<F> {
         Pin { i: self.i, _p: PhantomData }
     }
@@ -517,26 +534,26 @@ impl<F: PinIO> Clone for Pin<F> {
 
 impl Eq for PinID {}
 impl Ord for PinID {
-    #[inline(always)]
+    #[inline]
     fn cmp(&self, other: &PinID) -> Ordering {
         (*self as u8).cmp(&(*other as u8))
     }
 }
 impl Copy for PinID {}
 impl Clone for PinID {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> PinID {
         *self
     }
 }
 impl PartialEq for PinID {
-    #[inline(always)]
+    #[inline]
     fn eq(&self, other: &PinID) -> bool {
-        (*self as u8).eq(&(*other as u8))
+        *self as u8 == *other as u8
     }
 }
 impl PartialOrd for PinID {
-    #[inline(always)]
+    #[inline]
     fn partial_cmp(&self, other: &PinID) -> Option<Ordering> {
         (*self as u8).partial_cmp(&(*other as u8))
     }
@@ -580,7 +597,7 @@ impl TryFrom<u8> for PinID {
 
 impl Copy for PinSlew {}
 impl Clone for PinSlew {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> PinSlew {
         *self
     }
@@ -588,7 +605,7 @@ impl Clone for PinSlew {
 
 impl Copy for PinState {}
 impl Clone for PinState {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> PinState {
         *self
     }
@@ -596,7 +613,7 @@ impl Clone for PinState {
 
 impl Copy for PinStrength {}
 impl Clone for PinStrength {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> PinStrength {
         *self
     }
@@ -604,7 +621,7 @@ impl Clone for PinStrength {
 
 impl Copy for PinFunction {}
 impl Clone for PinFunction {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> PinFunction {
         *self
     }
@@ -612,7 +629,7 @@ impl Clone for PinFunction {
 
 impl Copy for PinInterrupt {}
 impl Clone for PinInterrupt {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> PinInterrupt {
         *self
     }
@@ -620,14 +637,14 @@ impl Clone for PinInterrupt {
 
 impl Copy for PinDirection {}
 impl Clone for PinDirection {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> PinDirection {
         *self
     }
 }
 
 impl From<Pin<Output>> for Pin<Input> {
-    #[inline(always)]
+    #[inline]
     fn from(v: Pin<Output>) -> Pin<Input> {
         v.into_input()
     }
@@ -642,16 +659,14 @@ impl<F: PinIO> Acknowledge for Pin<F> {
     }
 }
 
-#[cfg(feature = "debug")]
 impl Debug for PinInvalidError {
+    #[cfg(feature = "debug")]
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("PinInvalidError")
     }
-}
-#[cfg(not(feature = "debug"))]
-impl Debug for PinInvalidError {
-    #[inline(always)]
+    #[cfg(not(feature = "debug"))]
+    #[inline]
     fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
         Ok(())
     }
@@ -665,7 +680,7 @@ pub fn emergency_pin_on(i: PinID) {
         .write(|r| unsafe { r.gpio_out_set().bits(v) })
 }
 
-pub(crate) fn setup_pins() {
+pub(super) fn setup_pins() {
     let s = unsafe { SIO::steal() };
     let r = unsafe { RESETS::steal() };
     let b = unsafe { PADS_BANK0::steal() };

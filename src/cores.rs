@@ -25,11 +25,11 @@ use core::cell::UnsafeCell;
 use core::clone::Clone;
 use core::fmt::{self, Debug, Formatter};
 use core::marker::{Copy, Sync};
+use core::matches;
 use core::mem::{ManuallyDrop, drop, zeroed};
 use core::ops::FnOnce;
 use core::result::Result::{self, Err, Ok};
 use core::sync::atomic::{Ordering, compiler_fence};
-use core::{matches, unreachable};
 
 use crate::asm::{nop, sev, udf};
 use crate::atomic::{Mutex, with};
@@ -65,20 +65,16 @@ enum CoreState {
 impl Core {
     #[inline]
     pub fn current() -> Core {
-        match unsafe { (*SIO::ptr()).cpuid().read().bits() } {
-            0 => Core::C0,
-            1 => Core::C1,
-            _ => unreachable!(),
-        }
+        if unsafe { (*SIO::ptr()).cpuid().read().bits() % 2 == 0 } { Core::C0 } else { Core::C1 }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn is_running(&self) -> bool {
         is_running(*self)
     }
 }
 impl<const N: usize> CoreStack<N> {
-    #[inline(always)]
+    #[inline]
     pub const fn new() -> CoreStack<N> {
         CoreStack(UnsafeCell::new([0usize; N]))
     }
@@ -86,7 +82,7 @@ impl<const N: usize> CoreStack<N> {
 
 impl Copy for Core {}
 impl Clone for Core {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Core {
         *self
     }
@@ -94,14 +90,14 @@ impl Clone for Core {
 
 impl Copy for CoreState {}
 impl Clone for CoreState {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> CoreState {
         *self
     }
 }
 
-#[cfg(feature = "debug")]
 impl Debug for CoreError {
+    #[cfg(feature = "debug")]
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -111,10 +107,8 @@ impl Debug for CoreError {
             CoreError::InvalidCore => f.write_str("InvalidCore"),
         }
     }
-}
-#[cfg(not(feature = "debug"))]
-impl Debug for CoreError {
-    #[inline(always)]
+    #[cfg(not(feature = "debug"))]
+    #[inline]
     fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
         Ok(())
     }
@@ -122,7 +116,7 @@ impl Debug for CoreError {
 
 unsafe impl Sync for CoreStack {}
 
-#[inline(always)]
+#[inline]
 pub fn is_running(core: Core) -> bool {
     match core {
         Core::C0 => true,
@@ -140,7 +134,7 @@ pub fn interrupt(core: Core) -> Result<(), CoreError> {
         _ => Err(CoreError::NotActive),
     }
 }
-#[inline(always)]
+#[inline]
 pub fn spawn_core1<const N: usize, F: FnOnce() -> () + Sync>(stack: &'static CoreStack<N>, func: F) -> Result<(), CoreError> {
     spawn(Core::C1, stack, func)
 }
@@ -158,7 +152,7 @@ pub fn spawn<const N: usize, F: FnOnce() -> () + Sync>(core: Core, stack: &'stat
     let x = unsafe { &mut *stack.0.get() };
     let s = unsafe {
         let v = x.as_mut_ptr().add(x.len());
-        v.sub(v.align_offset(0x8) + 1)
+        v.sub(v.align_offset(8) + 1)
     };
     let mut e = ManuallyDrop::new(func);
     let s = unsafe {
@@ -183,13 +177,13 @@ pub fn spawn<const N: usize, F: FnOnce() -> () + Sync>(core: Core, stack: &'stat
             drop(ManuallyDrop::into_inner(e));
             return Err(CoreError::NoResponse);
         }
-        for i in d {
-            if i == 0 {
+        for i in d.iter() {
+            if *i == 0 {
                 f.drain();
                 sev();
             }
-            f.write_block(i as _);
-            if f.read_block() != i as _ {
+            f.write_block(*i as _);
+            if f.read_block() != *i as _ {
                 u += 1;
                 continue 'outer;
             }
@@ -228,18 +222,18 @@ fn core1_status(s: CoreState) {
 fn core1_get_status() -> CoreState {
     with(|x| *CORE1_STATE.borrow(x))
 }
-#[inline(always)]
+#[inline]
 fn core1_stack_guard(stack: *mut usize) {
     let m = unsafe { &*MPU::PTR };
     if m.ctrl.read() != 0 {
         udf();
     }
     let a = (stack as u32 + 0x1F) & !0x1F;
-    let r = 0xFF ^ (1 << ((a >> 5) & 0x7));
+    let r = 0xFF ^ unsafe { 1u32.unchecked_shl(a.unchecked_shr(5) & 0x7) };
     unsafe {
         m.ctrl.write(0x5);
         m.rbar.write((a & !0xFF) | 0x10);
-        m.rasr.write((r << 8) | 0x1000000F);
+        m.rasr.write(r.unchecked_shl(8) | 0x1000000F);
     }
 }
 #[inline]
@@ -254,6 +248,7 @@ fn core1_push<F: FnOnce() -> () + Sync>(func: F) -> Result<(), CoreError> {
             return Ok(());
         }
     }
+    drop(ManuallyDrop::into_inner(e));
     Err(CoreError::NoResponse)
 }
 
@@ -264,9 +259,7 @@ extern "C" fn core1_start<F: FnOnce() -> () + Sync>(_: u64, _: u64, main: *mut M
     core1_timers();
     let mut f = Fifo::get();
     f.write_block(1);
-    unsafe {
-        ManuallyDrop::take(&mut *main)();
-    }
+    unsafe { ManuallyDrop::take(&mut *main)() };
     core1_status(CoreState::Available);
     loop {
         f.drain();

@@ -22,10 +22,12 @@
 extern crate core;
 
 use core::clone::Clone;
+use core::hint::unreachable_unchecked;
 use core::iter::Iterator;
 use core::mem::zeroed;
+use core::ops::AddAssign;
 use core::option::Option::{None, Some};
-use core::{panic, unreachable};
+use core::unreachable;
 
 use crate::asm::{delay, nop};
 use crate::clock::RtcClock;
@@ -33,6 +35,7 @@ use crate::pac::{CLOCKS, PLL_SYS, PLL_USB, RESETS, ROSC, RTC, SCB, SYST, TIMER, 
 
 pub(crate) const DIV: u32 = 0x100u32;
 
+const FREQ_RTC: u32 = 46_875u32;
 const FREQ_XOSC: u32 = 12_000_000u32;
 const FREQ_ROSC: u32 = 149_500_000u32;
 
@@ -48,14 +51,13 @@ pub struct Clock {
 }
 
 impl Clock {
-    #[inline(always)]
+    #[inline]
     pub(crate) fn new() -> Clock {
         Clock::new_with_freq(FREQ_ROSC)
     }
     #[inline]
     pub(crate) fn new_with_freq(freq: u32) -> Clock {
-        // Disable Resus
-        let c = unsafe { CLOCKS::steal() };
+        let c = unsafe { CLOCKS::steal() }; // Disable Resus
         unsafe { c.clk_sys_resus_ctrl().write_with_zero(|w| w) };
         // Setup XOSC and set it as the reference clock.
         let x = setup_xosc();
@@ -65,7 +67,8 @@ impl Clock {
         setup_ref(&c, false);
         setup_sys(&c);
         setup_per(&c);
-        let r = setup_rtc(&c, (f as f32 * 1f32) as u32, 46_875u32 + 125);
+        // TODO(sf): Correct clock skew
+        let r = setup_rtc(&c, (f as f32 * 1f32) as u32, FREQ_RTC + 125);
         // Enable the RTC and ROSC to go DORMANT
         c.sleep_en0().write(|r| unsafe { r.bits(0x300000) });
         c.sleep_en1().write(|r| unsafe { r.bits(0) });
@@ -74,8 +77,7 @@ impl Clock {
         while x.status().read().stable().bit_is_set() || x.ctrl().read().enable().is_enable() {
             nop();
         }
-        // Disable the unused clocks.
-        setup_powersave(&c);
+        setup_powersave(&c); // Disable the unused clocks.
         Clock {
             rtc:  RtcClock::new(r),
             freq: f,
@@ -83,19 +85,19 @@ impl Clock {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn freq(&self) -> u32 {
         self.freq
     }
-    #[inline(always)]
+    #[inline]
     pub fn seed(&self) -> u32 {
         self.seed
     }
-    #[inline(always)]
+    #[inline]
     pub fn rtc(&self) -> &RtcClock {
         &self.rtc
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_wake_only_with_enabled(&self, en: bool) {
         // 0x10 - SEVONPEND
         unsafe { (&*SCB::PTR).scr.modify(|r| if en { r | 0x10 } else { r & !0x10 }) }
@@ -133,7 +135,7 @@ impl Timer {
     }
     pub fn sleep_us(&self, v: u32) {
         let t = (v as u64) * ((self.freq as u64) / 1_000_000);
-        let c = t >> 24;
+        let c = unsafe { t.unchecked_shr(24) };
         if c > 0 {
             unsafe {
                 self.clk.rvr.write(0xFFFFFF);
@@ -168,7 +170,7 @@ impl Timer {
                 self.int.timerawh().read().bits(),
             );
             if v == h {
-                return ((h as u64) << 32) | l as u64;
+                return unsafe { (h as u64).unchecked_shl(32) | l as u64 };
             }
             v = h;
         }
@@ -176,7 +178,7 @@ impl Timer {
 }
 
 impl Clone for Timer {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Timer {
         Timer {
             clk:  unsafe { zeroed() },
@@ -193,7 +195,7 @@ fn setup_xosc() -> XOSC {
     // Setup our frequency.
     // We're using the default 12MHz.
     v.startup()
-        .write(|r| unsafe { r.delay().bits((FREQ_XOSC / 256_000u32).saturating_mul(64u32) as u16) });
+        .write(|r| unsafe { r.delay().bits((FREQ_XOSC / 256_000).saturating_mul(64) as u16) });
     // Enable the XOSC.
     v.ctrl().write(|r| r.enable().enable());
     // Wait for it to be stable.
@@ -247,24 +249,26 @@ fn rosc_drive(rosc: &ROSC) -> bool {
         0xFA4 => 8,
         0xFA5 => 6,
         0xFA7 => 4,
-        0xFA6 => panic!(), // Shouldn't happen
+        0xFA6 => unreachable!(), // Shouldn't happen
         _ => return false,
     };
-    let mut n = 0;
-    for (i, v) in s[0..l].windows(2).enumerate() {
-        if v[1] < v[0] {
-            n = i + 1;
-            break;
+    unsafe {
+        let mut n = 0;
+        for (i, v) in s.get_unchecked(0..l).windows(2).enumerate() {
+            if *v.get_unchecked(1) < *v.get_unchecked(0) {
+                n = i + 1;
+                break;
+            }
         }
-    }
-    if s[n] < 3 {
-        s[n] += 1;
-        let m = s[0..l].iter().min().map(|v| *v).unwrap_or(0);
-        for v in s[l..].iter_mut() {
-            *v = m;
+        if *s.get_unchecked(n) < 3 {
+            s.get_unchecked_mut(n).add_assign(1);
+            let m = s.get_unchecked(0..l).iter().min().map(|v| *v).unwrap_or(0);
+            for v in s.get_unchecked_mut(l..).iter_mut() {
+                *v = m;
+            }
+            rosc_write_freq(rosc, &s);
+            return true;
         }
-        rosc_write_freq(rosc, &s);
-        return true;
     }
     false
 }
@@ -312,13 +316,11 @@ fn rosc_read(clocks: &CLOCKS) -> u32 {
     while clocks.fc0_status().read().running().bit_is_set() {
         nop();
     }
-    clocks.fc0_ref_khz().write(|r| unsafe { r.fc0_ref_khz().bits(0x2EE0u32) });
-    clocks.fc0_interval().write(|r| unsafe { r.fc0_interval().bits(0xAu8) });
-    clocks.fc0_min_khz().write(|r| unsafe { r.fc0_min_khz().bits(0u32) });
-    clocks
-        .fc0_max_khz()
-        .write(|r| unsafe { r.fc0_max_khz().bits(0x1FFFFFFu32) });
-    clocks.fc0_src().write(|r| unsafe { r.fc0_src().bits(0x3u8) });
+    clocks.fc0_ref_khz().write(|r| unsafe { r.fc0_ref_khz().bits(0x2EE0) });
+    clocks.fc0_interval().write(|r| unsafe { r.fc0_interval().bits(0xA) });
+    clocks.fc0_min_khz().write(|r| unsafe { r.fc0_min_khz().bits(0) });
+    clocks.fc0_max_khz().write(|r| unsafe { r.fc0_max_khz().bits(0x1FFFFFF) });
+    clocks.fc0_src().write(|r| unsafe { r.fc0_src().bits(0x3) });
     while clocks.fc0_status().read().done().bit_is_clear() {
         nop();
     }
@@ -326,8 +328,8 @@ fn rosc_read(clocks: &CLOCKS) -> u32 {
 }
 #[inline]
 fn rosc_set_div(rosc: &ROSC, v: u32) {
-    let i = 0xAA0u32 + if v == 0x20 { 0 } else { v };
-    rosc.div().write(|r| unsafe { r.bits(i) });
+    rosc.div()
+        .write(|r| unsafe { r.bits(0xAA0 + if v == 0x20 { 0 } else { v }) });
 }
 #[inline]
 fn rosc_state(rosc: &ROSC, v: u8) -> u8 {
@@ -340,7 +342,7 @@ fn rosc_state(rosc: &ROSC, v: u8) -> u8 {
         5 => rosc.freqb().read().ds5().bits(),
         6 => rosc.freqb().read().ds6().bits(),
         7 => rosc.freqb().read().ds7().bits(),
-        _ => unreachable!(),
+        _ => unsafe { unreachable_unchecked() },
     }
 }
 #[inline]
@@ -364,12 +366,13 @@ fn setup_ref(clocks: &CLOCKS, xosc: bool) {
 #[inline]
 fn rosc_write_freq(rosc: &ROSC, v: &[u8; 8]) {
     let mut a = 0x96960000u32;
-    for (i, v) in v[0..4].iter().enumerate() {
-        a |= ((*v & 0x7) as u32) << (i * 4);
+    let (x, y) = unsafe { v.split_at_unchecked(4) };
+    for (i, v) in x.iter().enumerate() {
+        unsafe { a |= ((*v & 0x7) as u32).unchecked_shl(i as u32 * 4) };
     }
     let mut b = 0x96960000u32;
-    for (i, v) in v[4..8].iter().enumerate() {
-        b |= ((*v & 0x7) as u32) << (i * 4);
+    for (i, v) in y.iter().enumerate() {
+        unsafe { b |= ((*v & 0x7) as u32).unchecked_shl(i as u32 * 4) };
     }
     rosc.freqa().write(|r| unsafe { r.bits(a) });
     rosc.freqb().write(|r| unsafe { r.bits(b) });
@@ -402,8 +405,8 @@ fn setup_rosc(clocks: &CLOCKS, freq: u32) -> (u32, u32) {
 fn setup_rtc(clocks: &CLOCKS, clk_freq: u32, freq: u32) -> RTC {
     // BUG(sf): RTC clock skews a bit after a period of time in a linear path.
     //          This is potentially due to the system clock frequency?
-    let f = ((clk_freq as f32 / 46_875f32) * 100f32) as u32;
-    let d = (f / 100) << 8 | (f % 100);
+    let f = ((clk_freq as f32 / (FREQ_RTC as f32)) * 100f32) as u32;
+    let d = unsafe { (f / 100).unchecked_shl(8) } | (f % 100);
     if clocks.clk_rtc_div().read().bits() < d {
         clocks.clk_rtc_div().modify(|_, r| unsafe { r.bits(d) });
     }

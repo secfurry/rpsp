@@ -30,7 +30,7 @@ use core::ops::FnOnce;
 use core::option::Option;
 
 const DAYS_IN_YEAR: [u16; 13] = [
-    0x0, 0x1F, 0x3B, 0x5A, 0x78, 0x97, 0xB5, 0xD4, 0xF3, 0x111, 0x130, 0x14E, 0x16D,
+    0, 0x1F, 0x3B, 0x5A, 0x78, 0x97, 0xB5, 0xD4, 0xF3, 0x111, 0x130, 0x14E, 0x16D,
 ];
 
 #[repr(u8)]
@@ -72,7 +72,7 @@ pub struct Time {
 }
 
 impl Time {
-    #[inline(always)]
+    #[inline]
     pub const fn zero() -> Time {
         Time {
             day:     0u8,
@@ -84,7 +84,7 @@ impl Time {
             weekday: Weekday::None,
         }
     }
-    #[inline(always)]
+    #[inline]
     pub const fn empty() -> Time {
         Time {
             day:     1u8,
@@ -96,7 +96,7 @@ impl Time {
             weekday: Weekday::None,
         }
     }
-    #[inline(always)]
+    #[inline]
     pub const fn new(year: u16, month: Month, day: u8, hours: u8, mins: u8, secs: u8, weekday: Weekday) -> Time {
         Time {
             day,
@@ -109,50 +109,52 @@ impl Time {
         }
     }
 
-    #[inline(always)]
+    #[inline]
+    pub fn from_seconds(sec: i64) -> Time {
+        let (h, m, s) = clock(sec);
+        let (y, v, d) = date(sec);
+        Time::new(
+            y,
+            v,
+            d,
+            h,
+            m,
+            s,
+            Weekday::from(((sec.wrapping_add(0x15180) & 0x93A80) / 0x15180) as u8),
+        )
+    }
+
+    #[inline]
     pub fn is_valid(&self) -> bool {
         self.day >= 1 && self.day <= 31 && self.hours <= 23 && self.mins <= 59 && self.secs <= 59 && !self.month.is_none()
     }
-    pub fn from_epoch(&self) -> i64 {
+    pub fn into_seconds(&self) -> i64 {
         let (y, v) = norm(self.year as i32, self.month as i32 - 1, 0xC);
         let (s, _) = norm(self.secs as i32, 0, 0x3B9ACA00);
         let (m, s) = norm(self.mins as i32, s, 0x3C);
         let (h, m) = norm(self.hours as i32, m, 0x3C);
         let (d, h) = norm(self.day as i32, h, 0x18);
-        let v = v as usize + 1;
-        let mut e = since_epoch(y) + DAYS_IN_YEAR[v - 1] as i64;
-        if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) && v >= 3 {
+        let r = v as usize + 1;
+        let mut e = since_epoch(y) + unsafe { *DAYS_IN_YEAR.get_unchecked((r - 1).min(12)) as i64 };
+        if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) && r >= 3 {
             e += 1;
         }
         ((e + d as i64 - 1) * 0x15180) + (h * 0xE10 + m * 0x3C + s) as i64
     }
     #[inline]
     pub fn add_seconds(self, d: i64) -> Time {
-        let e = self.from_epoch().wrapping_add(d);
-        let (h, m, s) = clock(e);
-        let (y, v, d) = date(e);
-        let w = match (e.wrapping_add(0x15180) & 0x93A80) / 0x15180 {
-            0 => Weekday::Sunday,
-            1 => Weekday::Monday,
-            2 => Weekday::Tuesday,
-            3 => Weekday::Wednesday,
-            4 => Weekday::Thursday,
-            5 => Weekday::Friday,
-            6 => Weekday::Saturday,
-            _ => self.weekday,
-        };
-        Time::new(y, v, d, h, m, s, w)
+        Time::from_seconds(self.into_seconds().wrapping_add(d))
     }
 }
 impl Month {
-    #[inline(always)]
+    #[inline]
     pub fn is_none(&self) -> bool {
         match self {
             Month::None => true,
             _ => false,
         }
     }
-    #[inline(always)]
+    #[inline]
     pub fn map_or<U>(self, default: U, f: impl FnOnce(Month) -> U) -> U {
         match self {
             Month::None => default,
@@ -164,28 +166,20 @@ impl Weekday {
     #[inline]
     pub fn from_time(t: &Time) -> Weekday {
         if !t.weekday.is_none() {
-            return t.weekday;
-        }
-        match (t.from_epoch().wrapping_add(0x15180) & 0x93A80) / 0x15180 {
-            0 => Weekday::Sunday,
-            1 => Weekday::Monday,
-            2 => Weekday::Tuesday,
-            3 => Weekday::Wednesday,
-            4 => Weekday::Thursday,
-            5 => Weekday::Friday,
-            6 => Weekday::Saturday,
-            _ => Weekday::None,
+            t.weekday
+        } else {
+            Weekday::from(((t.into_seconds().wrapping_add(0x15180) & 0x93A80) / 0x15180) as u8)
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn is_none(&self) -> bool {
         match self {
             Weekday::None => true,
             _ => false,
         }
     }
-    #[inline(always)]
+    #[inline]
     pub fn map_or<U>(self, default: U, f: impl FnOnce(Weekday) -> U) -> U {
         match self {
             Weekday::None => default,
@@ -197,7 +191,7 @@ impl Weekday {
 impl Eq for Time {}
 impl Copy for Time {}
 impl Clone for Time {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Time {
         Time {
             day:     self.day,
@@ -211,13 +205,13 @@ impl Clone for Time {
     }
 }
 impl Default for Time {
-    #[inline(always)]
+    #[inline]
     fn default() -> Time {
         Time::empty()
     }
 }
 impl PartialEq for Time {
-    #[inline(always)]
+    #[inline]
     fn eq(&self, other: &Time) -> bool {
         self.day == other.day && self.year == other.year && self.mins == other.mins && self.secs == other.secs && self.hours == other.hours && self.month == other.month
     }
@@ -225,20 +219,20 @@ impl PartialEq for Time {
 
 impl Eq for Month {}
 impl Ord for Month {
-    #[inline(always)]
+    #[inline]
     fn cmp(&self, other: &Month) -> Ordering {
         (*self as u8).cmp(&(*other as u8))
     }
 }
 impl Copy for Month {}
 impl Clone for Month {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Month {
         *self
     }
 }
 impl Default for Month {
-    #[inline(always)]
+    #[inline]
     fn default() -> Month {
         Month::January
     }
@@ -264,13 +258,13 @@ impl From<u8> for Month {
     }
 }
 impl PartialEq for Month {
-    #[inline(always)]
+    #[inline]
     fn eq(&self, other: &Month) -> bool {
         *self as u8 == *other as u8
     }
 }
 impl PartialOrd for Month {
-    #[inline(always)]
+    #[inline]
     fn partial_cmp(&self, other: &Month) -> Option<Ordering> {
         (*self as u8).partial_cmp(&(*other as u8))
     }
@@ -278,20 +272,20 @@ impl PartialOrd for Month {
 
 impl Eq for Weekday {}
 impl Ord for Weekday {
-    #[inline(always)]
+    #[inline]
     fn cmp(&self, other: &Weekday) -> Ordering {
         (*self as u8).cmp(&(*other as u8))
     }
 }
 impl Copy for Weekday {}
 impl Clone for Weekday {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Weekday {
         *self
     }
 }
 impl Default for Weekday {
-    #[inline(always)]
+    #[inline]
     fn default() -> Weekday {
         Weekday::Sunday
     }
@@ -312,13 +306,13 @@ impl From<u8> for Weekday {
     }
 }
 impl PartialEq for Weekday {
-    #[inline(always)]
+    #[inline]
     fn eq(&self, other: &Weekday) -> bool {
         *self as u8 == *other as u8
     }
 }
 impl PartialOrd for Weekday {
-    #[inline(always)]
+    #[inline]
     fn partial_cmp(&self, other: &Weekday) -> Option<Ordering> {
         (*self as u8).partial_cmp(&(*other as u8))
     }
@@ -348,13 +342,13 @@ fn date(epoch: i64) -> (u16, Month, u8) {
     let mut y = 0x190 * (d / 0x23AB1);
     d -= 0x23AB1 * (d / 0x23AB1);
     let mut n = d / 0x8EAC;
-    n -= n >> 2;
+    n -= unsafe { n.unchecked_shr(2) };
     y += 0x64 * n;
     d -= 0x8EAC * n;
     y += 0x4 * (d / 0x5B5);
     d -= 0x5B5 * (d / 0x5B5);
     let mut n = d / 0x16D;
-    n -= n >> 2;
+    n -= unsafe { n.unchecked_shr(2) };
     y += n;
     d -= 0x16D * n;
     let v = ((y as i64).wrapping_sub(0x440D116EBF)) as u16;
@@ -367,14 +361,14 @@ fn date(epoch: i64) -> (u16, Month, u8) {
         }
     }
     let m = (k / 0x1F) as usize;
-    let e = DAYS_IN_YEAR[m + 1];
+    let e = unsafe { *DAYS_IN_YEAR.get_unchecked((m + 1).min(12)) };
     if k >= e {
         return (v, Month::from((m + 2) as u8), (k - e + 1) as u8);
     }
     (
         v,
         Month::from((m + 1) as u8),
-        (k - DAYS_IN_YEAR[m] + 1) as u8,
+        (k - unsafe { *DAYS_IN_YEAR.get_unchecked(m.min(12)) } + 1) as u8,
     )
 }
 fn norm(hi: i32, low: i32, base: i32) -> (i32, i32) {
@@ -429,7 +423,7 @@ mod display {
     }
 
     impl Debug for Month {
-        #[inline(always)]
+        #[inline]
         fn fmt(&self, f: &mut Formatter<'_>) -> Result {
             Display::fmt(self, f)
         }
@@ -456,7 +450,7 @@ mod display {
     }
 
     impl Debug for Weekday {
-        #[inline(always)]
+        #[inline]
         fn fmt(&self, f: &mut Formatter<'_>) -> Result {
             Display::fmt(self, f)
         }

@@ -22,7 +22,7 @@
 extern crate core;
 
 use core::clone::Clone;
-use core::cmp;
+use core::cmp::Ord;
 use core::marker::{Copy, PhantomData};
 use core::mem::size_of;
 use core::option::Option;
@@ -77,7 +77,11 @@ pub type DmaBiDirection<T, R, W, B> = DmaConfig<BiDirection<T, R, W, B>>;
 impl Dma {
     #[inline]
     fn start(&self) {
-        unsafe { DMA::steal().multi_chan_trigger().write(|r| r.bits(1 << *self as u32)) }
+        unsafe {
+            DMA::steal()
+                .multi_chan_trigger()
+                .write(|r| r.bits(1u32.unchecked_shl(*self as u32)))
+        }
     }
     #[inline]
     fn ptr(&self) -> &CH {
@@ -88,7 +92,7 @@ impl Dma {
         unsafe {
             DMA::steal()
                 .multi_chan_trigger()
-                .write(|r| r.bits((1 << *self as u32) | (1 << other as u32)))
+                .write(|r| r.bits(1u32.unchecked_shl(*self as u32) | 1u32.unchecked_shl(other as u32)))
         }
     }
     #[inline]
@@ -105,19 +109,19 @@ impl Dma {
     #[inline]
     fn irq0_state(&self) -> bool {
         let d = unsafe { DMA::steal() };
-        if (d.ints0().read().bits() & (1 << *self as u32)) == 0 {
+        if (d.ints0().read().bits() & unsafe { 1u32.unchecked_shl(*self as u32) }) == 0 {
             return false;
         }
-        d.ints0().write(|r| unsafe { r.bits(1 << *self as u32) });
+        d.ints0().write(|r| unsafe { r.bits(1u32.unchecked_shl(*self as u32)) });
         true
     }
     #[inline]
     fn irq1_state(&self) -> bool {
         let d = unsafe { DMA::steal() };
-        if (d.ints1().read().bits() & (1 << *self as u32)) == 0 {
+        if (d.ints1().read().bits() & unsafe { 1u32.unchecked_shl(*self as u32) }) == 0 {
             return false;
         }
-        d.ints1().write(|r| unsafe { r.bits(1 << *self as u32) });
+        d.ints1().write(|r| unsafe { r.bits(1u32.unchecked_shl(*self as u32)) });
         true
     }
     fn setup<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>>(&self, from: &R, to: &W, swap: bool, pace: &DmaPace, start: bool) {
@@ -130,7 +134,7 @@ impl Dma {
         let d = self.ptr();
         d.ch_al1_ctrl().write(|r| unsafe {
             r.data_size()
-                .bits(size_of::<T>() as u8 >> 1)
+                .bits((size_of::<T>() as u8).unchecked_shr(1))
                 .incr_read()
                 .bit(from.rx_incremented())
                 .incr_write()
@@ -145,7 +149,7 @@ impl Dma {
                 .bit(true)
         });
         d.ch_read_addr().write(|r| unsafe { r.bits(j) });
-        d.ch_trans_count().write(|r| unsafe { r.bits(cmp::min(k, u)) });
+        d.ch_trans_count().write(|r| unsafe { r.bits(k.min(u)) });
         if start {
             d.ch_al2_write_addr_trig().write(|r| unsafe { r.bits(y) });
         } else {
@@ -154,7 +158,7 @@ impl Dma {
     }
 }
 impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>> DmaConfig<Single<T, R, W>> {
-    #[inline(always)]
+    #[inline]
     pub const fn new(ch: Dma, from: R, to: W) -> DmaConfig<Single<T, R, W>> {
         DmaConfig(Single {
             ch,
@@ -166,11 +170,11 @@ impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>> DmaConfig<Single<T, R, W>> {
         })
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn pace(&mut self, v: DmaPace) {
         self.0.pace = v
     }
-    #[inline(always)]
+    #[inline]
     pub fn bit_swap(&mut self, swap: bool) {
         self.0.swap = swap
     }
@@ -189,7 +193,7 @@ impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>> DmaConfig<Single<T, R, W>> {
     }
 }
 impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>> DmaConfig<Double<T, R, W>> {
-    #[inline(always)]
+    #[inline]
     pub const fn new(ch1: Dma, ch2: Dma, from: R, to: W) -> DmaConfig<Double<T, R, W>> {
         DmaConfig(Double {
             ch1,
@@ -203,11 +207,11 @@ impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>> DmaConfig<Double<T, R, W>> {
         })
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn pace(&mut self, v: DmaPace) {
         self.0.pace = v
     }
-    #[inline(always)]
+    #[inline]
     pub fn bit_swap(&mut self, swap: bool) {
         self.0.swap = swap
     }
@@ -238,11 +242,11 @@ impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>> DmaStream<Single<T, R, W>> {
     pub fn is_done(&self) -> bool {
         self.0.ch.ptr().ch_ctrl_trig().read().busy().bit_is_clear()
     }
-    #[inline(always)]
+    #[inline]
     pub fn irq0_state(&self) -> bool {
         self.0.ch.irq0_state()
     }
-    #[inline(always)]
+    #[inline]
     pub fn irq1_state(&self) -> bool {
         self.0.ch.irq1_state()
     }
@@ -368,7 +372,7 @@ impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>, S: DmaWriter<T>> DmaStream<Do
     }
 }
 impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>, B: DmaReadWrite<T>> DmaConfig<BiDirection<T, R, W, B>> {
-    #[inline(always)]
+    #[inline]
     pub const fn new(ch1: Dma, ch2: Dma, from: R, bi: B, to: W) -> DmaConfig<BiDirection<T, R, W, B>> {
         DmaConfig(BiDirection {
             ch1,
@@ -383,15 +387,15 @@ impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>, B: DmaReadWrite<T>> DmaConfig
         })
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn pace_to(&mut self, v: DmaPace) {
         self.0.pace_to = v
     }
-    #[inline(always)]
+    #[inline]
     pub fn bit_swap(&mut self, swap: bool) {
         self.0.swap = swap
     }
-    #[inline(always)]
+    #[inline]
     pub fn pace_from(&mut self, v: DmaPace) {
         self.0.pace_from = v
     }
@@ -442,7 +446,7 @@ impl<T: DmaWord, R: DmaReader<T>, W: DmaWriter<T>, B: DmaReadWrite<T>> DmaStream
 
 impl Copy for Dma {}
 impl Clone for Dma {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Dma {
         *self
     }

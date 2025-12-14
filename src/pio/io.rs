@@ -56,61 +56,61 @@ pub struct Tx<T: PioIO> {
 pub trait PioIO {}
 
 impl Rx<u8> {
-    #[inline(always)]
+    #[inline]
     pub fn read(&mut self) -> u8 {
         self.read_raw() as u8
     }
-    #[inline(always)]
+    #[inline]
     pub fn try_read(&mut self) -> Option<u8> {
         self.try_read_raw().map(|v| v as u8)
     }
 }
 impl Tx<u8> {
-    #[inline(always)]
+    #[inline]
     pub fn write(&mut self, v: u8) {
         self.write_raw(v as u32)
     }
-    #[inline(always)]
+    #[inline]
     pub fn try_write(&mut self, v: u8) -> Result<(), PioError> {
         self.try_write_raw(v as u32)
     }
 }
 impl Rx<u16> {
-    #[inline(always)]
+    #[inline]
     pub fn read(&mut self) -> u16 {
         self.read_raw() as u16
     }
-    #[inline(always)]
+    #[inline]
     pub fn try_read(&mut self) -> Option<u16> {
         self.try_read_raw().map(|v| v as u16)
     }
 }
 impl Tx<u16> {
-    #[inline(always)]
+    #[inline]
     pub fn write(&mut self, v: u16) {
         self.write_raw(v as u32)
     }
-    #[inline(always)]
+    #[inline]
     pub fn try_write(&mut self, v: u16) -> Result<(), PioError> {
         self.try_write_raw(v as u32)
     }
 }
 impl Rx<u32> {
-    #[inline(always)]
+    #[inline]
     pub fn read(&mut self) -> u32 {
         self.read_raw()
     }
-    #[inline(always)]
+    #[inline]
     pub fn try_read(&mut self) -> Option<u32> {
         self.try_read_raw()
     }
 }
 impl Tx<u32> {
-    #[inline(always)]
+    #[inline]
     pub fn write(&mut self, v: u32) {
         self.write_raw(v)
     }
-    #[inline(always)]
+    #[inline]
     pub fn try_write(&mut self, v: u32) -> Result<(), PioError> {
         self.try_write_raw(v)
     }
@@ -118,35 +118,35 @@ impl Tx<u32> {
 impl<T: PioIO> Rx<T> {
     #[inline]
     pub fn dreq(&self) -> u8 {
-        (if self.dev == PIO0::PTR { 0x4u8 } else { 0xCu8 }) + self.idx as u8
+        (if self.dev == PIO0::PTR { 4u8 } else { 12u8 }) + self.idx as u8
     }
     #[inline]
     pub fn clear_stalled(&self) {
         self.pio()
             .fdebug()
-            .write(|r| unsafe { r.rxstall().bits(1 << self.idx as u8) })
+            .write(|r| unsafe { r.rxstall().bits(1u32.unchecked_shl(self.idx as u32) as u8) })
     }
     #[inline]
     pub fn clear_underrun(&self) {
         self.pio()
             .fdebug()
-            .write(|r| unsafe { r.rxunder().bits(1 << self.idx as u8) })
+            .write(|r| unsafe { r.rxunder().bits(1u32.unchecked_shl(self.idx as u32) as u8) })
     }
     #[inline]
     pub fn is_full(&self) -> bool {
-        self.pio().fstat().read().rxfull().bits() & (1 << self.idx as u8) != 0
+        self.pio().fstat().read().rxfull().bits() & (unsafe { 1u32.unchecked_shl(self.idx as u32) as u8 }) != 0
     }
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.pio().fstat().read().rxempty().bits() & (1 << self.idx as u8) != 0
+        self.pio().fstat().read().rxempty().bits() & (unsafe { 1u32.unchecked_shl(self.idx as u32) as u8 }) != 0
     }
     #[inline]
     pub fn is_stalled(&self) -> bool {
-        self.pio().fdebug().read().rxstall().bits() & (1 << self.idx as u8) != 0
+        self.pio().fdebug().read().rxstall().bits() & (unsafe { 1u32.unchecked_shl(self.idx as u32) as u8 }) != 0
     }
     #[inline]
     pub fn is_underrun(&self) -> bool {
-        self.pio().fdebug().read().rxunder().bits() & (1 << self.idx as u8) != 0
+        self.pio().fdebug().read().rxunder().bits() & (unsafe { 1u32.unchecked_shl(self.idx as u32) as u8 }) != 0
     }
     #[inline]
     pub fn read_raw(&mut self) -> u32 {
@@ -174,7 +174,7 @@ impl<T: PioIO> Rx<T> {
     pub fn set_non_empty_irq(&self, i: Request, en: bool) {
         write_reg(
             self.pio().sm_irq(i as usize).irq_inte().as_ptr(),
-            1 << self.idx as u8,
+            unsafe { 1u32.unchecked_shl(self.idx as u32) },
             !en,
         )
     }
@@ -182,7 +182,7 @@ impl<T: PioIO> Rx<T> {
     pub fn set_non_empty_irq_state(&self, i: Request, en: bool) {
         write_reg(
             self.pio().sm_irq(i as usize).irq_intf().as_ptr(),
-            1 << self.idx as u8,
+            unsafe { 1u32.unchecked_shl(self.idx as u32) },
             !en,
         )
     }
@@ -197,11 +197,11 @@ impl<T: PioIO> Rx<T> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn ptr(&self) -> &RXF {
         unsafe { &*self.ptr }
     }
-    #[inline(always)]
+    #[inline]
     fn pio(&self) -> &RegisterBlock {
         unsafe { &*self.dev }
     }
@@ -209,35 +209,35 @@ impl<T: PioIO> Rx<T> {
 impl<T: PioIO> Tx<T> {
     #[inline]
     pub fn dreq(&self) -> u8 {
-        (if self.dev == PIO0::PTR { 0x0u8 } else { 0x8u8 }) + self.idx as u8
+        (if self.dev == PIO0::PTR { 0u8 } else { 8u8 }) + self.idx as u8
     }
     #[inline]
     pub fn clear_stalled(&self) {
         self.pio()
             .fdebug()
-            .write(|r| unsafe { r.txstall().bits(1 << self.idx as u8) })
+            .write(|r| unsafe { r.txstall().bits(1u32.unchecked_shl(self.idx as u32) as u8) })
     }
     #[inline]
     pub fn clear_overrun(&self) {
         self.pio()
             .fdebug()
-            .write(|r| unsafe { r.txover().bits(1 << self.idx as u8) })
+            .write(|r| unsafe { r.txover().bits(1u32.unchecked_shl(self.idx as u32) as u8) })
     }
     #[inline]
     pub fn is_full(&self) -> bool {
-        self.pio().fstat().read().txfull().bits() & (1 << self.idx as u8) != 0
+        self.pio().fstat().read().txfull().bits() & (unsafe { 1u32.unchecked_shl(self.idx as u32) as u8 }) != 0
     }
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.pio().fstat().read().txempty().bits() & (1 << self.idx as u8) != 0
+        self.pio().fstat().read().txempty().bits() & (unsafe { 1u32.unchecked_shl(self.idx as u32) as u8 }) != 0
     }
     #[inline]
     pub fn is_overrun(&self) -> bool {
-        self.pio().fdebug().read().txover().bits() & (1 << self.idx as u8) != 0
+        self.pio().fdebug().read().txover().bits() & (unsafe { 1u32.unchecked_shl(self.idx as u32) as u8 }) != 0
     }
     #[inline]
     pub fn is_stalled(&self) -> bool {
-        self.pio().fdebug().read().txstall().bits() & (1 << self.idx as u8) != 0
+        self.pio().fdebug().read().txstall().bits() & (unsafe { 1u32.unchecked_shl(self.idx as u32) as u8 }) != 0
     }
     #[inline]
     pub fn address(&self) -> *const u32 {
@@ -261,7 +261,7 @@ impl<T: PioIO> Tx<T> {
     pub fn set_non_empty_irq(&self, i: Request, en: bool) {
         write_reg(
             self.pio().sm_irq(i as usize).irq_inte().as_ptr(),
-            1 << (self.idx as u8 + 4),
+            unsafe { 1u32.unchecked_shl(self.idx as u32 + 4) },
             !en,
         )
     }
@@ -269,7 +269,7 @@ impl<T: PioIO> Tx<T> {
     pub fn set_non_empty_irq_state(&self, i: Request, en: bool) {
         write_reg(
             self.pio().sm_irq(i as usize).irq_intf().as_ptr(),
-            1 << (self.idx as u8 + 4),
+            unsafe { 1u32.unchecked_shl(self.idx as u32 + 4) },
             !en,
         )
     }
@@ -292,11 +292,11 @@ impl<T: PioIO> Tx<T> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn ptr(&self) -> &TXF {
         unsafe { &*self.ptr }
     }
-    #[inline(always)]
+    #[inline]
     fn pio(&self) -> &RegisterBlock {
         unsafe { &*self.dev }
     }
@@ -337,7 +337,7 @@ impl PioIO for u32 {}
 
 impl Copy for Request {}
 impl Clone for Request {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> Request {
         *self
     }

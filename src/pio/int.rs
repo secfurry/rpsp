@@ -46,51 +46,51 @@ pub enum InterruptIndex {
 }
 
 impl InterruptState {
-    #[inline(always)]
+    #[inline]
     pub fn sm0(&self) -> bool {
         self.0 & 0x100 != 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn sm1(&self) -> bool {
         self.0 & 0x200 != 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn sm2(&self) -> bool {
         self.0 & 0x400 != 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn sm3(&self) -> bool {
         self.0 & 0x800 != 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn rx_not_empty_sm0(&self) -> bool {
         self.0 & 0x1 != 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn rx_not_empty_sm1(&self) -> bool {
         self.0 & 0x2 != 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn rx_not_empty_sm2(&self) -> bool {
         self.0 & 0x4 != 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn rx_not_empty_sm3(&self) -> bool {
         self.0 & 0x8 != 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn tx_not_empty_sm0(&self) -> bool {
         self.0 & 0x10 != 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn tx_not_empty_sm1(&self) -> bool {
         self.0 & 0x20 != 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn tx_not_empty_sm2(&self) -> bool {
         self.0 & 0x40 != 0
     }
-    #[inline(always)]
+    #[inline]
     pub fn tx_not_empty_sm3(&self) -> bool {
         self.0 & 0x80 != 0
     }
@@ -104,24 +104,24 @@ impl<'a> Interrupt<'a> {
     pub fn state(&self) -> InterruptState {
         InterruptState(self.ptr().sm_irq(self.irq as usize).irq_ints().read().bits())
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_interrupt(&self, i: InterruptIndex, en: bool) {
         write_reg(
             self.ptr().sm_irq(self.irq as usize).irq_inte().as_ptr(),
-            1 << (i as u8 + 8),
+            unsafe { 1u32.unchecked_shl(i as u32 + 8) },
             !en,
         )
     }
-    #[inline(always)]
+    #[inline]
     pub fn set_interrupt_state(&self, i: InterruptIndex, en: bool) {
         write_reg(
             self.ptr().sm_irq(self.irq as usize).irq_intf().as_ptr(),
-            1 << (i as u8 + 8),
+            unsafe { 1u32.unchecked_shl(i as u32 + 8) },
             !en,
         )
     }
 
-    #[inline(always)]
+    #[inline]
     pub(super) fn new(p: &'a Pio, i: Request) -> Interrupt<'a> {
         Interrupt {
             dev: p.dev,
@@ -130,7 +130,7 @@ impl<'a> Interrupt<'a> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn ptr(&self) -> &RegisterBlock {
         unsafe { &*self.dev }
     }
@@ -138,26 +138,26 @@ impl<'a> Interrupt<'a> {
 
 impl Eq for InterruptState {}
 impl Ord for InterruptState {
-    #[inline(always)]
+    #[inline]
     fn cmp(&self, other: &InterruptState) -> Ordering {
         self.0.cmp(&other.0)
     }
 }
 impl Copy for InterruptState {}
 impl Clone for InterruptState {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> InterruptState {
         InterruptState(self.0)
     }
 }
 impl PartialEq for InterruptState {
-    #[inline(always)]
+    #[inline]
     fn eq(&self, other: &InterruptState) -> bool {
-        self.0.eq(&other.0)
+        self.0 == other.0
     }
 }
 impl PartialOrd for InterruptState {
-    #[inline(always)]
+    #[inline]
     fn partial_cmp(&self, other: &InterruptState) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
     }
@@ -165,7 +165,7 @@ impl PartialOrd for InterruptState {
 
 impl Copy for InterruptIndex {}
 impl Clone for InterruptIndex {
-    #[inline(always)]
+    #[inline]
     fn clone(&self) -> InterruptIndex {
         *self
     }
