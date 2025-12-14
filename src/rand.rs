@@ -94,7 +94,7 @@ impl Rand {
             for i in c {
                 let v = self.rand();
                 unsafe { copy_nonoverlapping(v.as_ptr(), i.as_mut_ptr(), 4) };
-                n += 8;
+                n += 4;
             }
         }
         if r.len() > 0 {

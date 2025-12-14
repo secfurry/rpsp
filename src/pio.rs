@@ -494,7 +494,7 @@ impl<S: PioStateOccupied> Machine<S> {
     pub fn set_pins_sync_bypass(&self, pins: &[PinID]) {
         self.pio()
             .input_sync_bypass()
-            .write(|r| unsafe { r.bits(pins.iter().map(|v| 1u32.unchecked_mul(*v as u32)).sum()) });
+            .write(|r| unsafe { r.bits(pins.iter().map(|v| 1u32.unchecked_shl(*v as u32)).sum()) });
     }
     pub fn set_pin_state(&mut self, state: PinState, pin: PinID) {
         let v = match state {
