@@ -19,7 +19,6 @@ path                = "src/lib.rs"
 test                = false
 bench               = false
 doctest             = false
-edition             = "2024"
 crate-type          = [ "lib" ]
 
 [dependencies]
