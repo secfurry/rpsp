@@ -4,9 +4,8 @@ from glob import glob
 from io import StringIO
 from os import makedirs
 from traceback import format_exc
-from sys import argv, stderr, exit
-from os.path import dirname, isdir, join, exists
-
+from sys import argv, exit, stderr
+from os.path import join, isdir, exists, dirname
 
 _VALID_I2C = [
     "I2C0_SDA",
